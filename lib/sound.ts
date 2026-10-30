@@ -1,7 +1,7 @@
 // lib/sound.ts
 
 export type BgmType = "opening" | "clubhouse" | "playingmarch" | "ending";
-export type SeType = "strike" | "ball" | "playball" | "out" | "gameset";
+export type SeType = "strike" | "ball" | "playball" | "out" | "gameset" | "meet" | "homerun";
 
 const BGM_PATHS: Record<BgmType, string> = {
   opening: "/sound/opening.m4a",
@@ -16,6 +16,8 @@ const SE_PATHS: Record<SeType, string> = {
   playball: "/sound/playball.wav",
   out: "/sound/out.wav",
   gameset: "/sound/gameset.wav",
+  meet: "/sound/meet.mp3",
+  homerun: "/sound/homerun.mp3",
 };
 
 let currentBgmAudio: HTMLAudioElement | null = null;

@@ -4,10 +4,11 @@ import { OPPONENT_UNIVERSITIES } from "@/lib/league";
 import { ASIA_PLAYERS, generateTeamOrder } from "@/lib/draft";
 
 // ==========================================
-// 1. 文化部助っ人選手マスター
+// 1. 文化部助っ人選手マスター（10名）
+//    各組の不足枠を埋める個性豊かな学内助っ人
 // ==========================================
 export const CULTURE_CLUB_PLAYERS: Record<string, Player> = {
-  // ① 料理部：中華鍋で鍛えた手首と無尽蔵のスタミナ（フライパン感覚のミート打ち）
+  // ① 料理部：中華鍋で鍛えた手首と無尽蔵のスタミナ
   COOKING: {
     id: 801,
     name: "料理部・早乙女みちる",
@@ -15,19 +16,13 @@ export const CULTURE_CLUB_PLAYERS: Record<string, Player> = {
     grade: 2,
     batting_hand: "R",
     image_url: "/901.jpg",
-    contact: 76,
-    power: 60,
-    speed: 64,
-    arm: 72,
-    fielding: 74,
-    pitch_speed: 55,
-    control: 55,
-    stamina: 95,
+    contact: 76, power: 60, speed: 64, arm: 72, fielding: 74,
+    pitch_speed: 55, control: 55, stamina: 95,
     personality: "努力家",
     nickname: "フライパンの魔術師",
     description: "毎日の中華鍋煽りで鍛え抜かれた無尽蔵のスタミナとリスト。バントと右打ちの名手。",
   },
-  // ② マンガ部：Gペンの軌道をボールに再現する魔球の使い手（動体視力抜群・鈍足）
+  // ② マンガ部：Gペンの軌道をボールに再現する魔球の使い手
   MANGA: {
     id: 802,
     name: "マンガ部・神代コミック",
@@ -35,20 +30,13 @@ export const CULTURE_CLUB_PLAYERS: Record<string, Player> = {
     grade: 2,
     batting_hand: "L",
     image_url: "/901.jpg",
-    contact: 68,
-    power: 50,
-    speed: 42,
-    arm: 68,
-    fielding: 64,
-    pitch_speed: 65, // 緩急
-    control: 84,     // ミリ単位のコントロール
-    stamina: 60,
-    breaking_ball: 88, // 鋭い変化球
+    contact: 68, power: 50, speed: 42, arm: 68, fielding: 64,
+    pitch_speed: 65, control: 84, stamina: 60, breaking_ball: 88,
     personality: "お調子者",
     nickname: "締め切り直前の魔術師",
-    description: "締め切り直前の超集中力でストライクゾーンの四隅を突く技巧派。動体視力はプロ並みだが足は遅い。",
+    description: "締め切り直前の超集中力でストライクゾーンの四隅を突く技巧派。",
   },
-  // ③ 服飾部：ユニフォーム補修のフットワークがグラウンドで炸裂（意外な超俊足）
+  // ③ 服飾部：ミシンのステップワークで内野安打量産
   SEWING: {
     id: 803,
     name: "服飾部・針生ミシン",
@@ -56,16 +44,11 @@ export const CULTURE_CLUB_PLAYERS: Record<string, Player> = {
     grade: 1,
     batting_hand: "L",
     image_url: "/901.jpg",
-    contact: 66,
-    power: 45,
-    speed: 88,       // 超俊足
-    arm: 64,
-    fielding: 78,
-    pitch_speed: 50,
-    control: 50,
+    contact: 66, power: 45, speed: 88, arm: 64, fielding: 78,
+    pitch_speed: 50, control: 50,
     personality: "マイペース",
     nickname: "ダイヤモンドの仕立て屋",
-    description: "ミシンを踏む精密なステップで内野安打を量産する俊足ガール。チームのユニフォーム補修担当。",
+    description: "ミシンを踏む精密なステップで内野安打を量産する俊足ガール。",
   },
   // ④ 囲碁部：相手打者の配球と打球方向を数十手先まで読み切る頭脳派
   IGO: {
@@ -75,36 +58,138 @@ export const CULTURE_CLUB_PLAYERS: Record<string, Player> = {
     grade: 3,
     batting_hand: "R",
     image_url: "/901.jpg",
-    contact: 80,
-    power: 52,
-    speed: 56,
-    arm: 76,
-    fielding: 86,    // 鉄壁の守備判断
-    pitch_speed: 55,
-    control: 65,
+    contact: 80, power: 52, speed: 56, arm: 76, fielding: 86,
+    pitch_speed: 55, control: 65,
     personality: "頭脳派",
     nickname: "全局を見通す定石",
-    description: "数手先を読んだポジショニングで打球を正面でさばく。選球眼も抜群のインテリジェンス選手。",
+    description: "数手先を読んだポジショニングで打球を正面でさばくインテリジェンス。",
+  },
+  // ⑤ 天文部：夜空の観測で鍛えた広角視野と正確なスローイング
+  ASTRONOMY: {
+    id: 805,
+    name: "天文部・星野ステラ",
+    main_position: "SS",
+    grade: 2,
+    batting_hand: "R",
+    image_url: "/901.jpg",
+    contact: 72, power: 55, speed: 78, arm: 82, fielding: 80,
+    pitch_speed: 50, control: 50,
+    personality: "クール",
+    nickname: "銀河のパトロール",
+    description: "望遠鏡の精密なアングル調整が生む正確な送球が武器。",
+  },
+  // ⑥ 演劇部：舞台で鍛えた発声と全身を使った豪快なフルスイング
+  DRAMA: {
+    id: 806,
+    name: "演劇部・舞台カレン",
+    main_position: "1B",
+    grade: 3,
+    batting_hand: "R",
+    image_url: "/901.jpg",
+    contact: 65, power: 84, speed: 58, arm: 70, fielding: 68,
+    pitch_speed: 50, control: 50,
+    personality: "熱血",
+    nickname: "劇場のダイナマイト",
+    description: "大舞台で培った度胸とパンチ力でスタンドインを狙う長距離砲。",
+  },
+  // ⑦ 茶道部：静寂の中で培った動体視力とブレない下半身
+  TEA: {
+    id: 807,
+    name: "茶道部・千利休子",
+    main_position: "C",
+    grade: 1,
+    batting_hand: "R",
+    image_url: "/901.jpg",
+    contact: 74, power: 58, speed: 60, arm: 76, fielding: 82,
+    pitch_speed: 50, control: 50,
+    personality: "努力家",
+    nickname: "静寂の司令塔",
+    description: "正座で鍛え上げた強靭な体幹でワンバウンド投球を後逸しない堅実捕手。",
+  },
+  // ⑧ 軽音部：ドラムのリズムキープで球速以上の伸びを放つ
+  BAND: {
+    id: 808,
+    name: "軽音部・弦巻ロック",
+    main_position: "3B",
+    grade: 2,
+    batting_hand: "L",
+    image_url: "/901.jpg",
+    contact: 70, power: 76, speed: 72, arm: 78, fielding: 70,
+    pitch_speed: 55, control: 50,
+    personality: "お調子者",
+    nickname: "ビートスラッガー",
+    description: "抜群のリズム感で変化球を芯で捉えるクラッチヒッター。",
+  },
+  // ⑨ 写真部：決定的な一瞬を逃さない超高速クイックモーション
+  PHOTO: {
+    id: 809,
+    name: "写真部・影山シャッター",
+    main_position: "P",
+    grade: 2,
+    batting_hand: "R",
+    image_url: "/901.jpg",
+    contact: 58, power: 48, speed: 66, arm: 76, fielding: 74,
+    pitch_speed: 74, control: 78, stamina: 72, breaking_ball: 80,
+    personality: "クール",
+    nickname: "一瞬のファインダー",
+    description: "球離れが見えにくい独特のフォームから切れ味鋭いスライダーを投じる。",
+  },
+  // ⑩ 文芸部：相手投手の配球傾向を完全に読み切る選球眼
+  NOVEL: {
+    id: 810,
+    name: "文芸部・栞野ノベル",
+    main_position: "SS",
+    grade: 3,
+    batting_hand: "L",
+    image_url: "/901.jpg",
+    contact: 78, power: 50, speed: 70, arm: 68, fielding: 76,
+    pitch_speed: 50, control: 50,
+    personality: "頭脳派",
+    nickname: "行間を読む選球眼",
+    description: "膨大なデータをインプットし、カウントごとの球種をズバリ予測する。",
   },
 };
 
+// 助っ人リスト（前半5名・後半5名）
+const HELPERS_FIRST_HALF = [
+  CULTURE_CLUB_PLAYERS.COOKING,
+  CULTURE_CLUB_PLAYERS.MANGA,
+  CULTURE_CLUB_PLAYERS.SEWING,
+  CULTURE_CLUB_PLAYERS.IGO,
+  CULTURE_CLUB_PLAYERS.ASTRONOMY,
+];
+
+const HELPERS_SECOND_HALF = [
+  CULTURE_CLUB_PLAYERS.DRAMA,
+  CULTURE_CLUB_PLAYERS.TEA,
+  CULTURE_CLUB_PLAYERS.BAND,
+  CULTURE_CLUB_PLAYERS.PHOTO,
+  CULTURE_CLUB_PLAYERS.NOVEL,
+];
+
+/**
+ * 青葉部員10名を「主人公」「仲間A(4名)」「仲間B(5名)」に分割するヘルパー
+ */
+export function splitAobaMembers(userTeam: UserTeam) {
+  const proto = userTeam.players.find((p) => p.is_protagonist) || userTeam.players[0];
+  const teammates = userTeam.players.filter((p) => p.id !== proto.id);
+  const half = Math.floor(teammates.length / 2);
+  const groupA = teammates.slice(0, half); // 4名
+  const groupB = teammates.slice(half);    // 5名
+  return { proto, groupA, groupB };
+}
+
 // ==========================================
-// 2. 春 第1戦：学内紅白戦 A（青葉・白組）
-//    自軍の控え5名 ＋ 料理部・マンガ部
+// 2. 春 第1戦：学内紅白戦 A
 // ==========================================
+/**
+ * 第1戦 敵軍（青葉・白組A）
+ * 仲間B(5名) ＋ 助っ人後半5名 ＝ 計10名（スタメン6名 / ベンチ4名）
+ */
 export function getScrimmageTeamA(userTeam: UserTeam): LeagueTeam {
-  // 自軍ベンチ選手を中心に5名選出
-  const benchPlayers = userTeam.players.filter((p) => userTeam.order.bench_ids.includes(p.id));
-  const otherPlayers = userTeam.players.filter((p) => !userTeam.order.bench_ids.includes(p.id));
-  const pool = [...benchPlayers, ...otherPlayers].slice(0, 5);
-
-  const scrimmagePlayers: Player[] = [
-    ...pool,
-    CULTURE_CLUB_PLAYERS.COOKING,
-    CULTURE_CLUB_PLAYERS.MANGA,
-  ];
-
-  const order = generateTeamOrder(scrimmagePlayers);
+  const { groupB } = splitAobaMembers(userTeam);
+  const oppRoster: Player[] = [...groupB, ...HELPERS_SECOND_HALF];
+  const order = generateTeamOrder(oppRoster);
 
   return {
     id: 881,
@@ -113,53 +198,68 @@ export function getScrimmageTeamA(userTeam: UserTeam): LeagueTeam {
     initial: "白",
     color: "#2563eb",
     badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
-    desc: "新歓紅白戦！ 料理部・マンガ部の助っ人を交えた新戦力テストマッチ",
-    feature: "自チームの仲間と文化部助っ人による真剣勝負！ 実戦感覚を取り戻そう",
-    strength: { pitch: 70, contact: 72, power: 65, speed: 68, defense: 72 },
-    players: scrimmagePlayers,
+    desc: "新歓紅白戦第1弾！ 仲間Bチーム（5名）＋文化部助っ人との真剣テストマッチ",
+    feature: "普段は味方の部員が敵として登場！ 相手目線で仲間の実力を肌で体感しよう",
+    strength: { pitch: 72, contact: 74, power: 68, speed: 70, defense: 74 },
+    players: oppRoster,
     order,
   };
 }
 
+/**
+ * 第1戦 自軍操作ロスター（青葉・紅組A）
+ * 主人公(1名) ＋ 仲間A(4名) ＋ 助っ人前半5名 ＝ 計10名（部員5名スタメン＋助っ人1名／ベンチ助っ人4名）
+ */
+export function getScrimmageUserTeamA(userTeam: UserTeam): { players: Player[]; order: TeamOrder } {
+  const { proto, groupA } = splitAobaMembers(userTeam);
+  const roster: Player[] = [proto, ...groupA, ...HELPERS_FIRST_HALF];
+  const order = generateTeamOrder(roster);
+  return { players: roster, order };
+}
+
 // ==========================================
-// 3. 春 第2戦：学内紅白戦 B（青葉・紅組）
-//    打順シャッフル ＋ 服飾部・囲碁部
+// 3. 春 第2戦：学内紅白戦 B（敵味方シャッフル）
 // ==========================================
+/**
+ * 第2戦 敵軍（青葉・白組B）
+ * 仲間A(4名) ＋ 助っ人6名 ＝ 計10名（部員4名スタメン＋助っ人2名／ベンチ助っ人4名）
+ */
 export function getScrimmageTeamB(userTeam: UserTeam): LeagueTeam {
-  // 第1戦とは異なるパターンで自軍から5名選出（偶数・奇数インデックス）
-  const pool = userTeam.players.filter((_, idx) => idx % 2 === 1).slice(0, 5);
-  while (pool.length < 5) {
-    const p = userTeam.players.find((pl) => !pool.some((sel) => sel.id === pl.id));
-    if (p) pool.push(p);
-    else break;
-  }
-
-  const scrimmagePlayers: Player[] = [
-    ...pool,
-    CULTURE_CLUB_PLAYERS.SEWING,
-    CULTURE_CLUB_PLAYERS.IGO,
-  ];
-
-  const order = generateTeamOrder(scrimmagePlayers);
+  const { groupA } = splitAobaMembers(userTeam);
+  // 助っ人6名（805〜810）
+  const oppHelpers = [CULTURE_CLUB_PLAYERS.ASTRONOMY, ...HELPERS_SECOND_HALF];
+  const oppRoster: Player[] = [...groupA, ...oppHelpers];
+  const order = generateTeamOrder(oppRoster);
 
   return {
     id: 882,
-    name: "青葉女子大学・紅組（春季紅白戦B）",
-    shortName: "青葉・紅組",
-    initial: "紅",
+    name: "青葉女子大学・白組（春季紅白戦B）",
+    shortName: "青葉・白組",
+    initial: "白",
     color: "#dc2626",
     badgeColor: "bg-red-50 text-red-700 border-red-200",
-    desc: "開幕スタメン争奪戦！ 服飾部・囲碁部の助っ人と挑む第2テストマッチ",
-    feature: "ポジションをシャッフルした紅白戦。春以降の固定オーダーを見極めよう",
-    strength: { pitch: 72, contact: 74, power: 66, speed: 74, defense: 76 },
-    players: scrimmagePlayers,
+    desc: "新歓紅白戦第2弾！ 第1戦と敵味方をシャッフルしたスタメン争奪マッチ",
+    feature: "第1戦で味方だった仲間Aが敵に回る！ 2試合で部員全員の実力を見極めよう",
+    strength: { pitch: 74, contact: 76, power: 70, speed: 72, defense: 76 },
+    players: oppRoster,
     order,
   };
+}
+
+/**
+ * 第2戦 自軍操作ロスター（青葉・紅組B）
+ * 主人公(1名) ＋ 仲間B(5名) ＋ 助っ人4名 ＝ 計10名（部員6名全員スタメン／ベンチ助っ人4名）
+ */
+export function getScrimmageUserTeamB(userTeam: UserTeam): { players: Player[]; order: TeamOrder } {
+  const { proto, groupB } = splitAobaMembers(userTeam);
+  const helpers4 = HELPERS_FIRST_HALF.slice(0, 4);
+  const roster: Player[] = [proto, ...groupB, ...helpers4];
+  const order = generateTeamOrder(roster);
+  return { players: roster, order };
 }
 
 // ==========================================
 // 4. 春 第3戦：全日本実業団オールスターズ
-//    選手名＝架空企業名（大人の野球・部費稼ぎ）
 // ==========================================
 export function getCorporateAllStars(): LeagueTeam {
   const corporatePlayers: Player[] = [
@@ -170,13 +270,8 @@ export function getCorporateAllStars(): LeagueTeam {
       grade: 4,
       batting_hand: "L",
       image_url: "/901.jpg",
-      contact: 78,
-      power: 58,
-      speed: 92,
-      arm: 76,
-      fielding: 84,
-      pitch_speed: 60,
-      control: 55,
+      contact: 78, power: 58, speed: 92, arm: 76, fielding: 84,
+      pitch_speed: 60, control: 55,
       personality: "熱血",
       nickname: "特急ダイヤのリードオフマン",
     },
@@ -187,13 +282,8 @@ export function getCorporateAllStars(): LeagueTeam {
       grade: 4,
       batting_hand: "R",
       image_url: "/901.jpg",
-      contact: 80,
-      power: 54,
-      speed: 75,
-      arm: 74,
-      fielding: 88,
-      pitch_speed: 55,
-      control: 55,
+      contact: 80, power: 54, speed: 75, arm: 74, fielding: 88,
+      pitch_speed: 55, control: 55,
       personality: "努力家",
       nickname: "1ミリの狂いもない職人守備",
     },
@@ -204,13 +294,8 @@ export function getCorporateAllStars(): LeagueTeam {
       grade: 4,
       batting_hand: "L",
       image_url: "/901.jpg",
-      contact: 84,
-      power: 86,
-      speed: 64,
-      arm: 75,
-      fielding: 78,
-      pitch_speed: 60,
-      control: 55,
+      contact: 84, power: 86, speed: 64, arm: 75, fielding: 78,
+      pitch_speed: 60, control: 55,
       personality: "頭脳派",
       nickname: "劇薬クリーンナップ",
     },
@@ -221,13 +306,8 @@ export function getCorporateAllStars(): LeagueTeam {
       grade: 4,
       batting_hand: "R",
       image_url: "/901.jpg",
-      contact: 72,
-      power: 94,
-      speed: 58,
-      arm: 82,
-      fielding: 72,
-      pitch_speed: 60,
-      control: 50,
+      contact: 72, power: 94, speed: 58, arm: 82, fielding: 72,
+      pitch_speed: 60, control: 50,
       personality: "お調子者",
       nickname: "鋼鉄の放物線スラッガー",
     },
@@ -238,13 +318,8 @@ export function getCorporateAllStars(): LeagueTeam {
       grade: 4,
       batting_hand: "R",
       image_url: "/901.jpg",
-      contact: 70,
-      power: 74,
-      speed: 58,
-      arm: 88,
-      fielding: 86,
-      pitch_speed: 60,
-      control: 55,
+      contact: 70, power: 74, speed: 58, arm: 88, fielding: 86,
+      pitch_speed: 60, control: 55,
       personality: "クール",
       nickname: "鉄壁の配送レーザービーム",
     },
@@ -255,19 +330,11 @@ export function getCorporateAllStars(): LeagueTeam {
       grade: 4,
       batting_hand: "R",
       image_url: "/901.jpg",
-      contact: 62,
-      power: 55,
-      speed: 65,
-      arm: 84,
-      fielding: 78,
-      pitch_speed: 80, // 150km/h超
-      control: 86,
-      stamina: 85,
-      breaking_ball: 82,
+      contact: 62, power: 55, speed: 65, arm: 84, fielding: 78,
+      pitch_speed: 80, control: 86, stamina: 85, breaking_ball: 82,
       personality: "クール",
       nickname: "音速のキャプテンエース",
     },
-    // ベンチ控え
     {
       id: 817,
       name: "セントラル商事",
@@ -275,13 +342,8 @@ export function getCorporateAllStars(): LeagueTeam {
       grade: 4,
       batting_hand: "R",
       image_url: "/901.jpg",
-      contact: 74,
-      power: 76,
-      speed: 76,
-      arm: 74,
-      fielding: 72,
-      pitch_speed: 55,
-      control: 55,
+      contact: 74, power: 76, speed: 76, arm: 74, fielding: 72,
+      pitch_speed: 55, control: 55,
     },
     {
       id: 818,
@@ -290,15 +352,8 @@ export function getCorporateAllStars(): LeagueTeam {
       grade: 4,
       batting_hand: "L",
       image_url: "/901.jpg",
-      contact: 58,
-      power: 50,
-      speed: 60,
-      arm: 72,
-      fielding: 74,
-      pitch_speed: 72,
-      control: 82,
-      stamina: 75,
-      breaking_ball: 88,
+      contact: 58, power: 50, speed: 60, arm: 72, fielding: 74,
+      pitch_speed: 72, control: 82, stamina: 75, breaking_ball: 88,
     },
   ];
 
@@ -321,24 +376,18 @@ export function getCorporateAllStars(): LeagueTeam {
 
 // ==========================================
 // 5. 春 第4戦：六大学カレッジ・オールスターズ
-//    ライバル7校の看板選手が集結したドリームチーム
 // ==========================================
 export function getCollegeAllStars(savedOpponents?: LeagueTeam[]): LeagueTeam {
   const baseTeams = savedOpponents && savedOpponents.length > 0 ? savedOpponents : OPPONENT_UNIVERSITIES;
-
-  // ライバル7校の主力・エース・主砲を各校からピックアップ
   const allStarPlayers: Player[] = [];
 
   baseTeams.forEach((t) => {
-    // 投手エースまたは主軸打者
     const star = t.players?.find((p) => p.main_position === "P") || t.players?.[0];
     if (star) allStarPlayers.push(star);
-    // 4番打者も追加
     const cleanup = t.players?.find((p) => (p.power ?? 0) >= 80 && p.id !== star?.id);
     if (cleanup && allStarPlayers.length < 10) allStarPlayers.push(cleanup);
   });
 
-  // 最低6〜8名を確保
   const selected = allStarPlayers.slice(0, 8);
   const order = generateTeamOrder(selected);
 
@@ -349,7 +398,7 @@ export function getCollegeAllStars(savedOpponents?: LeagueTeam[]): LeagueTeam {
     initial: "星",
     color: "#7c3aed",
     badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
-    desc: "ライバル7校の看板選手が集結！ 関東インカレ選抜ドリームチーム",
+    desc: "ライバル7校の看板選手が集結！ 大学女子野球選抜ドリームチーム",
     feature: "紅蓮の剛腕、白百合の鉄壁守備、黒潮の韋駄天が一つになった最強軍団！",
     strength: { pitch: 86, contact: 84, power: 88, speed: 82, defense: 86 },
     players: selected,
@@ -359,7 +408,6 @@ export function getCollegeAllStars(savedOpponents?: LeagueTeam[]): LeagueTeam {
 
 // ==========================================
 // 6. 夏 優勝特典：アジア大学選抜（Asia All-Stars）
-//    ID 246〜255のアジア選手で結成された国際大会チーム
 // ==========================================
 export function getAsiaAllStars(): LeagueTeam {
   const asiaRoster = [...ASIA_PLAYERS];
@@ -384,7 +432,7 @@ export function getAsiaAllStars(): LeagueTeam {
 // 7. 春の4試合取得ヘルパー関数
 // ==========================================
 export function getSpringPreSeasonOpponent(
-  springRound: number, // 1〜4
+  springRound: number,
   userTeam: UserTeam,
   savedOpponents?: LeagueTeam[]
 ): LeagueTeam {
@@ -401,8 +449,6 @@ export function getSpringPreSeasonOpponent(
   }
 }
 
-// lib/specialTeams.ts の末尾に追記
-
 // ==========================================
 // 8. 秋 リーグ優勝特典：全米カレッジ選抜（USA All-Stars）
 //    ID 256〜265 の米国スーパースター軍団
@@ -416,7 +462,7 @@ export const USA_PLAYERS: Player[] = [
     batting_hand: "R",
     image_url: "/256.jpg",
     contact: 74, power: 80, speed: 76, arm: 92, fielding: 84,
-    pitch_speed: 92, // 155km/h超の豪速球
+    pitch_speed: 92,
     control: 82, stamina: 90, breaking_ball: 86,
     personality: "熱血",
     nickname: "カリフォルニア・エクスプレス",

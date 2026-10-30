@@ -89,12 +89,24 @@ export default function ClubhousePage() {
       const lData = loadLeagueData(parsed.team_name);
       setLeague(lData);
 
-      const customProtoStr = localStorage.getItem("bb6_custom_protagonist");
-      if (customProtoStr) {
-        setProtagonist(JSON.parse(customProtoStr));
+      // ★ 2代目エース（新主人公）を確実に部室センターへ配属
+      const activeProto = parsed.players.find((p) => p.is_protagonist);
+      if (activeProto) {
+        setProtagonist(activeProto);
+        localStorage.setItem("bb6_custom_protagonist", JSON.stringify(activeProto));
       } else {
-        const proto = parsed.players.find((p) => p.is_protagonist) || parsed.players[0];
-        setProtagonist(proto);
+        const customProtoStr = localStorage.getItem("bb6_custom_protagonist");
+        if (customProtoStr) {
+          try {
+            const parsedCustom = JSON.parse(customProtoStr);
+            const existsInTeam = parsed.players.find((p) => p.id === parsedCustom.id);
+            setProtagonist(existsInTeam || parsed.players[0]);
+          } catch {
+            setProtagonist(parsed.players[0]);
+          }
+        } else {
+          setProtagonist(parsed.players[0]);
+        }
       }
     } catch (e) {
       router.replace("/title");
@@ -133,9 +145,13 @@ export default function ClubhousePage() {
 
   const getSeasonDialogue = () => {
     if (season === "SPRING") {
+      const isSecondGen = team.current_year >= 5;
       return [
         "まず初めに、「オーダー変更」で戦力を確認、次に「全体練習・特訓合宿」で練習、それから「試合を開始する（プレイボール）」へ進んでください！",
-        `現在は春のプレシーズン！ 第${team.current_round}戦は【${opponent.name}】との一戦です！ 新入生の適性をしっかり試しましょう！`,
+        isSecondGen
+          ? "先輩たちからマウンドを受け継ぎました！ 2代目エースとして、今年も青葉旋風を巻き起こしてみせます！"
+          : `現在は春のプレシーズン！ 第${team.current_round}戦は【${opponent.name}】との一戦です！ 新入生の適性をしっかり試しましょう！`,
+        "紅白戦は青葉部員をシャッフルした真剣勝負！ 敵味方両面から仲間の実力を肌で体感できますよ！",
         "第3戦の実業団チームに勝利すると、企業から特別スポンサー料（多額の部費）が支給されますよ！",
         "春の全4試合を完走すると、夏の全国大学トーナメントへ進出できます！",
       ];
@@ -399,7 +415,9 @@ export default function ClubhousePage() {
                     className="w-full h-full object-cover object-top rounded-t-3xl drop-shadow-[0_15px_15px_rgba(0,0,0,0.6)] border-t-2 border-x-2 border-white/60"
                   />
                   <div className="absolute bottom-2 inset-x-2 bg-slate-900/90 backdrop-blur-sm text-white py-1 px-2 rounded-xl text-center shadow border border-white/20">
-                    <span className="text-[10px] font-black text-amber-400 block">新入生エース（あなた）</span>
+                    <span className="text-[10px] font-black text-amber-400 block">
+                      {team.current_year >= 5 ? "2代目エース（主役）" : "新入生エース（あなた）"}
+                    </span>
                     <span className="text-xs font-black truncate block">{protagonist.name}</span>
                   </div>
                 </div>
@@ -499,10 +517,30 @@ export default function ClubhousePage() {
 
                 <div className="space-y-2 text-xs font-medium">
                   {[
-                    { rnd: 1, title: "学内紅白戦 A", sub: "自軍控え ＋ 料理部・マンガ部助っ人", desc: "新歓紅白戦！ 投打の適性を確認" },
-                    { rnd: 2, title: "学内紅白戦 B", sub: "打順シャッフル ＋ 服飾部・囲碁部助っ人", desc: "スタメン争奪！ 2度目のテスト" },
-                    { rnd: 3, title: "全日本実業団選抜", sub: "大日本バイオ、サクラ重工などの企業選抜", desc: "大人の野球！ 勝利で特別スポンサー料" },
-                    { rnd: 4, title: "六大学オールスター", sub: "ライバル7大学の看板選手ドリームチーム", desc: "春の集大成！ 秋のライバルお披露目" },
+                    { 
+                      rnd: 1, 
+                      title: "学内紅白戦 A", 
+                      sub: "自軍(部員5名＋助っ人5名) vs 敵軍(仲間B 5名＋助っ人5名)", 
+                      desc: "新歓紅白戦！ 仲間Bチームの実力を敵目線で体感" 
+                    },
+                    { 
+                      rnd: 2, 
+                      title: "学内紅白戦 B", 
+                      sub: "敵味方シャッフル！ 自軍(部員6名) vs 敵軍(仲間A 4名＋助っ人6名)", 
+                      desc: "スタメン争奪！ 仲間Aチームと真剣勝負" 
+                    },
+                    { 
+                      rnd: 3, 
+                      title: "全日本実業団選抜", 
+                      sub: "大日本バイオ、サクラ重工などの企業選抜", 
+                      desc: "大人の野球！ 勝利で特別スポンサー料" 
+                    },
+                    { 
+                      rnd: 4, 
+                      title: "六大学オールスター", 
+                      sub: "ライバル7大学の看板選手ドリームチーム", 
+                      desc: "春の集大成！ 秋のライバルお披露目" 
+                    },
                   ].map((item) => {
                     const isDone = team.current_round > item.rnd;
                     const isCurrent = team.current_round === item.rnd;
@@ -839,6 +877,7 @@ export default function ClubhousePage() {
             <div className="space-y-2.5 text-xs text-slate-700 leading-relaxed max-h-72 overflow-y-auto pr-1">
               <p>・<strong>年間4シーズン制</strong>：春（プレシーズン4戦） ➔ 夏（全国トーナメント3戦＋アジア戦） ➔ 秋（公式リーグ7節＋全米決戦） ➔ 冬（世代交代・ドラフト）のサイクルで進行します。</p>
               <p>・<strong>6人制野球</strong>：投手・捕手・一塁・二塁・三塁・遊撃の6名で守り、外野手はいません。抜けた打球は長打になります。</p>
+              <p>・<strong>学内紅白戦（春季第1・2戦）</strong>：自チームの部員を2組に分け、文化部助っ人を交えて対戦！ 敵味方を入れ替えながら全員の適性を把握できます。</p>
               <p>・<strong>盗塁（スチール）システム</strong>：走力75以上の選手は、性格に応じた確率で自動スタート！ 捕手の肩力との勝負になります。</p>
               <p>・<strong>打順スロット固定</strong>：選手は最初に打席へ入った打順の席（1〜6番）に固定されます。別の打順へ入ることはできません。</p>
               <p>・<strong>フットサル式交代</strong>：試合中は何度でもベンチへ交代できます。ベンチで休んだ選手はイニング終了時にスタミナが全快します。</p>

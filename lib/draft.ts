@@ -233,6 +233,43 @@ export function processYearEndGraduation(
   };
 }
 
+/**
+ * ★【2代目主役・新エース指名処理】
+ * 在校生の中から指定した選手に主役フラグを付与し、部室看板データを自動更新
+ */
+export function assignNextProtagonist(
+  team: UserTeam,
+  newProtagonistId: number
+): { updatedTeam: UserTeam; newProtagonist: Player } {
+  let newProtagonist: Player | null = null;
+
+  const updatedPlayers = team.players.map((p) => {
+    if (p.id === newProtagonistId) {
+      const updated = { ...p, is_protagonist: true };
+      newProtagonist = updated;
+      return updated;
+    }
+    return { ...p, is_protagonist: false };
+  });
+
+  if (!newProtagonist) {
+    newProtagonist = updatedPlayers[0];
+    newProtagonist.is_protagonist = true;
+  }
+
+  const updatedTeam: UserTeam = {
+    ...team,
+    players: updatedPlayers,
+  };
+
+  if (typeof window !== "undefined") {
+    localStorage.setItem("bb6_myTeam", JSON.stringify(updatedTeam));
+    localStorage.setItem("bb6_custom_protagonist", JSON.stringify(newProtagonist));
+  }
+
+  return { updatedTeam, newProtagonist };
+}
+
 export async function generateDraftCandidates(
   team: UserTeam,
   oppPlayerIds: Set<number>,

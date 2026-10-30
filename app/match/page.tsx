@@ -5,14 +5,17 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Player, UserTeam, PositionType, LeagueTeam, TeamOrder, SeasonPhase, PersonalityType } from "@/types/baseball";
 import { getCurrentOpponent, recordRoundResults, resetLeagueForNewSeason, growOpponentTeams, OPPONENT_UNIVERSITIES, loadLeagueData } from "@/lib/league";
-import { processYearEndGraduation, GraduatedPlayerWithCareer } from "@/lib/draft";
-import { getScrimmageTeamA, getScrimmageTeamB, getCorporateAllStars, getCollegeAllStars, getAsiaAllStars, getUsaAllStars } from "@/lib/specialTeams";
+import { processYearEndGraduation, GraduatedPlayerWithCareer, assignNextProtagonist } from "@/lib/draft";
+import { 
+  getScrimmageTeamA, getScrimmageTeamB, getScrimmageUserTeamA, getScrimmageUserTeamB, 
+  getCorporateAllStars, getCollegeAllStars, getAsiaAllStars, getUsaAllStars 
+} from "@/lib/specialTeams";
 import PlayerCardModal from "@/components/PlayerCardModal";
 import SoundToggle from "@/components/SoundToggle";
 import { playBgm, playSe } from "@/lib/sound";
 import { 
   ChevronLeft, Trophy, Pause, Play, FastForward, AlertCircle, 
-  Gauge, ArrowRightLeft, Users, Info, X, Sparkles, Scale, Swords, ShieldHalf, Check, GraduationCap, Flame, Crown, Heart, Award, ArrowRight
+  Gauge, ArrowRightLeft, Users, Info, X, Sparkles, Scale, Swords, ShieldHalf, Check, GraduationCap, Flame, Crown, Heart, Award, ArrowRight, UserCheck
 } from "lucide-react";
 import Link from "next/link";
 
@@ -116,7 +119,11 @@ export default function MatchPage() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // 試合用チーム（紅白戦時はシャッフル編成、通常時はオリジナル）
   const [team, setTeam] = useState<UserTeam | null>(null);
+  // オリジナルの青葉部員10名データを保持
+  const baseTeamRef = useRef<UserTeam | null>(null);
+
   const [oppTeamData, setOppTeamData] = useState<LeagueTeam | null>(null);
 
   const [playerStamina, setPlayerStamina] = useState<Record<number, number>>({});
@@ -181,8 +188,10 @@ export default function MatchPage() {
     transitionMsg?: string;
   } | null>(null);
 
-  // グランドエンディング表示用ステート
+  // グランドエンディング ＆ 2代目エース指名モーダル
   const [showGrandEnding, setShowGrandEnding] = useState(false);
+  const [showSuccessorModal, setShowSuccessorModal] = useState(false);
+  const [selectedSuccessorId, setSelectedSuccessorId] = useState<number | null>(null);
 
   const [banner, setBanner] = useState<{ text: string; color: string } | null>(null);
   const [homeInEffect, setHomeInEffect] = useState(false);
@@ -253,6 +262,7 @@ export default function MatchPage() {
   const initNewMatch = useCallback((parsedTeam: UserTeam) => {
     setMatchResult(null);
     setShowGrandEnding(false);
+    setShowSuccessorModal(false);
     setIsPaused(false);
     setBanner(null);
     setHomeInEffect(false);
@@ -328,12 +338,30 @@ export default function MatchPage() {
     try {
       const parsed: UserTeam = JSON.parse(saved);
       if (!parsed.current_season) parsed.current_season = "SPRING";
-      setTeam(parsed);
+      baseTeamRef.current = parsed;
 
-      const opp = getSeasonOpponent(parsed);
-      setOppTeamData(opp);
+      const season = parsed.current_season;
+      const rnd = parsed.current_round || 1;
 
-      initNewMatch(parsed);
+      // ★ 紅白戦のシャッフル自軍・敵軍構築（重複0件・10名対10名）
+      let matchUserTeam: UserTeam = parsed;
+      let matchOppTeam: LeagueTeam;
+
+      if (season === "SPRING" && rnd === 1) {
+        const scrimmageUser = getScrimmageUserTeamA(parsed);
+        matchUserTeam = { ...parsed, players: scrimmageUser.players, order: scrimmageUser.order };
+        matchOppTeam = getScrimmageTeamA(parsed);
+      } else if (season === "SPRING" && rnd === 2) {
+        const scrimmageUser = getScrimmageUserTeamB(parsed);
+        matchUserTeam = { ...parsed, players: scrimmageUser.players, order: scrimmageUser.order };
+        matchOppTeam = getScrimmageTeamB(parsed);
+      } else {
+        matchOppTeam = getSeasonOpponent(parsed);
+      }
+
+      setTeam(matchUserTeam);
+      setOppTeamData(matchOppTeam);
+      initNewMatch(matchUserTeam);
     } catch (e) {
       router.replace("/");
     }
@@ -600,6 +628,7 @@ export default function MatchPage() {
       if (g.timer > 6) {
         const isStrike = Math.abs(g.ball.x - FIELD.HOME.x) <= 15;
 
+        // 見逃し・ボール
         if (!g.batter.isSwinging) {
           if (g.stealingRunner) {
             startStealThrowSequence(g);
@@ -616,6 +645,7 @@ export default function MatchPage() {
         const tacticMod = g.tactic === "MEET" ? 0.12 : g.tactic === "POWER" ? -0.1 : 0;
         const meetChance = 0.68 + (contactVal - 50) * 0.003 + tacticMod + staminaTiredMod;
 
+        // 空振り
         if (Math.random() > meetChance) {
           if (g.stealingRunner) {
             startStealThrowSequence(g);
@@ -625,6 +655,7 @@ export default function MatchPage() {
           return;
         }
 
+        // 打球が飛んだ場合（IN_PLAY）
         g.stealingRunner = null;
         g.movingRunners = g.movingRunners.filter((r) => r.id !== "stealer");
 
@@ -637,6 +668,8 @@ export default function MatchPage() {
         const hitRoll = Math.random();
 
         if (hitRoll < 0.20) {
+          // ★ 打球音：ミート（通常）
+          playSe("meet");
           g.currentPlayType = "POP_FLY";
           const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.8;
           g.ball.vx = Math.cos(angle) * 1.8;
@@ -646,6 +679,8 @@ export default function MatchPage() {
           g.hitStopFrames = 4;
         }
         else if (hitRoll < 0.68) {
+          // ★ 打球音：ミート（通常）
+          playSe("meet");
           g.currentPlayType = "GROUND_BALL";
           const targetFielder = g.fielders[Math.floor(Math.random() * g.fielders.length)];
           const fAngle = Math.atan2(targetFielder.y - FIELD.HOME.y, targetFielder.x - FIELD.HOME.x);
@@ -661,6 +696,8 @@ export default function MatchPage() {
           if (currentBatter) startGroundBallRunners(g, currentBatter, shouldChargeHome);
         }
         else if (hitRoll < 0.88) {
+          // ★ 打球音：ミート（通常）
+          playSe("meet");
           g.currentPlayType = "CLEAN_HIT";
           const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.3;
           g.ball.vx = Math.cos(angle) * 7.0;
@@ -671,6 +708,8 @@ export default function MatchPage() {
           if (currentBatter) startHitRunners(g, "SINGLE", currentBatter);
         }
         else if (hitRoll < 0.96) {
+          // ★ 打球音：ミート（通常）
+          playSe("meet");
           g.currentPlayType = "DOUBLE";
           const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.4;
           g.ball.vx = Math.cos(angle) * 8.2;
@@ -681,6 +720,8 @@ export default function MatchPage() {
           if (currentBatter) startHitRunners(g, "DOUBLE", currentBatter);
         }
         else {
+          // ★ 打球音：ホームラン快音！
+          playSe("homerun");
           g.currentPlayType = "HOMERUN";
           const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.9;
           g.ball.vx = Math.cos(angle) * 9.5;
@@ -1434,13 +1475,17 @@ export default function MatchPage() {
 
     const grownList: MatchGrowthPlayer[] = [];
 
-    if (team) {
+    // ★ 成長判定は、助っ人ではなく青葉正規部員（ID < 800）を対象に適用
+    const baseTeam = baseTeamRef.current || team;
+
+    if (baseTeam) {
       try {
         const growthCount = Math.random() < 0.5 ? 2 : 3;
-        const pool = [...team.players];
+        // 青葉部員10名の中から選出
+        const pool = [...baseTeam.players];
         const selectedPlayers: Player[] = [];
 
-        const currentPitcherId = team.order.defense_positions.P;
+        const currentPitcherId = baseTeam.order.defense_positions.P;
         const finalContributors = { ...activeContributors, [currentPitcherId]: (activeContributors[currentPitcherId] || 0) + 2 };
 
         for (let i = 0; i < growthCount; i++) {
@@ -1462,7 +1507,7 @@ export default function MatchPage() {
           pool.splice(pickedIdx, 1);
         }
 
-        const updatedPlayers = team.players.map((p) => {
+        const updatedPlayers = baseTeam.players.map((p) => {
           const isChosen = selectedPlayers.some((sp) => sp.id === p.id);
           if (!isChosen) return p;
 
@@ -1487,15 +1532,15 @@ export default function MatchPage() {
           return updated;
         });
 
-        const currentSeason: SeasonPhase = team.current_season || "SPRING";
-        const currentRnd = team.current_round || 1;
+        const currentSeason: SeasonPhase = baseTeam.current_season || "SPRING";
+        const currentRnd = baseTeam.current_round || 1;
 
         let nextSeason: SeasonPhase = currentSeason;
         let nextRound = currentRnd + 1;
         let isSeasonEnd = false;
         let transitionMsg = "";
-        let hasWonSummer = team.has_won_summer || false;
-        let hasWonAutumn = team.has_won_autumn || false;
+        let hasWonSummer = baseTeam.has_won_summer || false;
+        let hasWonAutumn = baseTeam.has_won_autumn || false;
 
         if (currentSeason === "SPRING") {
           if (currentRnd < 4) {
@@ -1529,7 +1574,7 @@ export default function MatchPage() {
         } else if (currentSeason === "AUTUMN") {
           if (currentRnd <= 7) {
             try {
-              recordRoundResults(currentRnd, myFinal, oppFinal, team.team_name);
+              recordRoundResults(currentRnd, myFinal, oppFinal, baseTeam.team_name);
             } catch (e) {
               console.warn("順位表更新スキップ:", e);
             }
@@ -1538,7 +1583,7 @@ export default function MatchPage() {
           if (currentRnd < 7) {
             nextRound = currentRnd + 1;
           } else if (currentRnd === 7) {
-            const leagueData = loadLeagueData(team.team_name);
+            const leagueData = loadLeagueData(baseTeam.team_name);
             const isChampion = leagueData.standings[0]?.teamId === 0;
 
             if (isChampion) {
@@ -1555,18 +1600,16 @@ export default function MatchPage() {
           }
         }
 
-        // シーズン終了時の世代交代処理
         if (isSeasonEnd) {
           const oppIds = new Set<number>();
           OPPONENT_UNIVERSITIES.forEach((t) => t.players?.forEach((p) => oppIds.add(p.id)));
 
           const teamWithGrownPlayers = {
-            ...team,
-            tp_funds: team.tp_funds + earnedTp,
+            ...baseTeam,
+            tp_funds: baseTeam.tp_funds + earnedTp,
             players: updatedPlayers,
           };
 
-          // ★ 卒業生に進路・メッセージ・主人公卒業判定を付与
           const { updatedTeam: graduatedTeam, graduatedPlayers, isProtagonistGraduating } = processYearEndGraduation(teamWithGrownPlayers, oppIds);
 
           resetLeagueForNewSeason(graduatedTeam.team_name);
@@ -1578,6 +1621,7 @@ export default function MatchPage() {
           graduatedTeam.has_won_autumn = false;
 
           localStorage.setItem("bb6_myTeam", JSON.stringify(graduatedTeam));
+          baseTeamRef.current = graduatedTeam;
           setTeam(graduatedTeam);
 
           setMatchResult({
@@ -1598,8 +1642,8 @@ export default function MatchPage() {
         }
 
         const updatedTeam: UserTeam = {
-          ...team,
-          tp_funds: team.tp_funds + earnedTp,
+          ...baseTeam,
+          tp_funds: baseTeam.tp_funds + earnedTp,
           current_season: nextSeason,
           current_round: nextRound,
           has_won_summer: hasWonSummer,
@@ -1608,6 +1652,7 @@ export default function MatchPage() {
         };
 
         localStorage.setItem("bb6_myTeam", JSON.stringify(updatedTeam));
+        baseTeamRef.current = updatedTeam;
         setTeam(updatedTeam);
 
         setMatchResult({
@@ -1787,6 +1832,14 @@ export default function MatchPage() {
     router.push("/");
   };
 
+  // ★ 2代目エース指名実行
+  const handleConfirmSuccessor = () => {
+    if (!selectedSuccessorId || !baseTeamRef.current) return;
+    assignNextProtagonist(baseTeamRef.current, selectedSuccessorId);
+    setShowSuccessorModal(false);
+    router.push("/scout-spring");
+  };
+
   if (!team || !oppTeamData) return null;
 
   const getPlayerAvatarUrl = (p: Player | undefined | null) => {
@@ -1892,8 +1945,11 @@ export default function MatchPage() {
     return `秋季公式リーグ 第${team.current_round}節 / 5イニング制`;
   };
 
-  // 主人公プレイヤー
-  const protagonist = team.players.find((p) => p.is_protagonist);
+  // 初代主人公（引退時用）
+  const protagonist = (baseTeamRef.current || team).players.find((p) => p.is_protagonist) || (baseTeamRef.current || team).players[0];
+
+  // 在校生候補（進級後の新2〜4年生）
+  const remainingUnderclassmen = (baseTeamRef.current || team).players.filter((p) => (p.grade ?? 1) <= 3);
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 p-3 md:p-6 font-sans select-none relative overflow-hidden">
@@ -2486,7 +2542,7 @@ export default function MatchPage() {
       )}
 
       {/* 試合終了リザルトモーダル */}
-      {matchResult && !showGrandEnding && (
+      {matchResult && !showGrandEnding && !showSuccessorModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300 select-none">
           <div className="bg-white rounded-3xl p-5 md:p-7 max-w-lg w-full shadow-2xl border border-slate-200 text-center space-y-4 max-h-[90vh] overflow-y-auto">
             
@@ -2559,13 +2615,13 @@ export default function MatchPage() {
               </div>
             )}
 
-            {/* ★ 4年生の卒業進路報告会エリア */}
+            {/* 4年生の卒業進路報告会エリア */}
             {matchResult.isSeasonEnd && matchResult.graduatedList && matchResult.graduatedList.length > 0 && (
               <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-3.5 text-left space-y-2.5 animate-in fade-in">
                 <div className="flex items-center justify-between border-b border-amber-200/80 pb-1.5">
                   <div className="flex items-center gap-1.5 text-xs font-black text-amber-950">
                     <GraduationCap size={16} className="text-amber-600" />
-                    第{team.current_year}期生 卒業式 ＆ 進路報告会（{matchResult.graduatedList.length}名）
+                    第{(baseTeamRef.current || team).current_year}期生 卒業式 ＆ 進路報告会（{matchResult.graduatedList.length}名）
                   </div>
                   <span className="text-[10px] text-amber-800 font-bold bg-white/80 px-2 py-0.5 rounded-full border border-amber-200">
                     4年生引退
@@ -2613,7 +2669,6 @@ export default function MatchPage() {
             <button
               onClick={() => {
                 if (matchResult.isProtagonistGraduating) {
-                  // ★ 主人公卒業時は大団円エンディングへ！
                   setShowGrandEnding(true);
                 } else if (matchResult.isSeasonEnd) {
                   router.push("/scout-spring");
@@ -2633,14 +2688,11 @@ export default function MatchPage() {
         </div>
       )}
 
-      {/* ============================================================== */}
       {/* ★ 主人公卒業グランドエンディング（大団円）モーダル */}
-      {/* ============================================================== */}
       {showGrandEnding && protagonist && (
         <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-500">
           <div className="max-w-xl w-full bg-slate-900 border-2 border-amber-400/80 rounded-3xl p-6 md:p-8 text-center space-y-6 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-500 text-white">
             
-            {/* 背景デコレーション */}
             <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500" />
             <div className="absolute -top-12 -right-12 w-44 h-44 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
 
@@ -2648,7 +2700,6 @@ export default function MatchPage() {
               <Crown size={14} className="text-amber-400" /> GRAND ENDING - 栄光の4年間 -
             </div>
 
-            {/* 主人公ビジュアル */}
             <div className="flex flex-col items-center">
               <div className="relative w-28 h-28 md:w-32 md:h-32 rounded-full overflow-hidden border-4 border-amber-400 shadow-2xl bg-slate-800 mb-3 ring-4 ring-amber-400/30">
                 <img
@@ -2665,7 +2716,6 @@ export default function MatchPage() {
               </span>
             </div>
 
-            {/* 進路決定バッジ */}
             <div className="bg-gradient-to-r from-amber-500/20 via-amber-400/30 to-amber-500/20 border border-amber-400/60 rounded-2xl p-3.5 space-y-1">
               <span className="text-[11px] font-mono font-black text-amber-300 tracking-wider block">
                 【進路先決定】
@@ -2678,7 +2728,6 @@ export default function MatchPage() {
               </p>
             </div>
 
-            {/* 主人公から監督への旅立ちの言葉 */}
             <div className="bg-slate-950/70 border border-white/10 rounded-2xl p-4 md:p-5 text-left space-y-2 relative">
               <Heart size={18} className="text-rose-500 absolute top-3 right-3 animate-pulse" />
               <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block">
@@ -2691,16 +2740,15 @@ export default function MatchPage() {
               </p>
             </div>
 
-            {/* 選択肢ボタン */}
             <div className="space-y-2.5 pt-2">
               <button
                 onClick={() => {
                   setShowGrandEnding(false);
-                  router.push("/scout-spring");
+                  setShowSuccessorModal(true); // ★ 2代目エース指名画面へ
                 }}
                 className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-2xl shadow-xl transition active:scale-95 text-xs md:text-sm flex items-center justify-center gap-2"
               >
-                <span>名誉監督として続投（第5期生の春ドラフトへ）</span>
+                <span>名誉監督として続投（2代目新エース指名へ）</span>
                 <ArrowRight size={16} />
               </button>
 
@@ -2714,6 +2762,67 @@ export default function MatchPage() {
                 大団円で終了（タイトル画面へ）
               </button>
             </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ★【案A】2代目新エース指名会議モーダル */}
+      {showSuccessorModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-300">
+          <div className="max-w-xl w-full bg-white rounded-3xl p-6 md:p-8 shadow-2xl border border-slate-200 space-y-5 text-center">
+            
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-full text-xs font-black">
+                <UserCheck size={14} className="text-amber-600" /> 次期チーム主役・エース選出会議
+              </div>
+              <h2 className="text-xl md:text-2xl font-black text-slate-900">
+                2代目エース（新主人公）を指名してください
+              </h2>
+              <p className="text-xs text-slate-600 font-bold">
+                指名された選手が部室のセンターに立ち、新たな青葉の顔としてナビゲートします
+              </p>
+            </div>
+
+            {/* 在校生リスト */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-64 overflow-y-auto p-1">
+              {remainingUnderclassmen.map((p) => {
+                const isSelected = selectedSuccessorId === p.id;
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => setSelectedSuccessorId(p.id)}
+                    className={`p-3 rounded-2xl border-2 flex flex-col items-center cursor-pointer transition ${
+                      isSelected
+                        ? "bg-amber-50 border-amber-500 ring-2 ring-amber-400 scale-[1.02] shadow-md"
+                        : "bg-slate-50 border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="relative w-14 h-14 rounded-full overflow-hidden bg-slate-800 mb-2 border border-slate-300 shadow">
+                      <img src={getPlayerAvatarUrl(p)} alt={p.name} className="w-full h-full object-cover" />
+                      <span className="absolute bottom-0 right-0 bg-slate-900 text-white text-[9px] font-black px-1.5 py-0.2 rounded">
+                        {p.main_position}
+                      </span>
+                    </div>
+                    <span className="font-black text-xs text-slate-900 truncate w-full text-center">
+                      {p.name}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono font-bold">
+                      新{((p.grade ?? 1) + 1)}年生 / {p.personality || "努力家"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={handleConfirmSuccessor}
+              disabled={!selectedSuccessorId}
+              className="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white font-black py-4 rounded-2xl shadow-xl transition active:scale-95 text-sm flex items-center justify-center gap-2"
+            >
+              <span>この選手を2代目エースに指名して第5期生へ</span>
+              <ArrowRight size={16} />
+            </button>
 
           </div>
         </div>
