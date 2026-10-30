@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Player, PositionType } from "@/types/baseball";
 import { OPPONENT_UNIVERSITIES } from "@/lib/league";
-import { hasUniqueImage, finalizeOpeningScout } from "@/lib/draft";
+import { hasUniqueImage, finalizeOpeningScout, EXCLUDED_DRAFT_IDS } from "@/lib/draft";
 import { Check, Users, Sparkles, ChevronRight, X, Shield, ArrowRight, Trophy } from "lucide-react";
 
 interface ScoutAttemptResult {
@@ -89,7 +89,7 @@ export default function ScoutOpeningPage() {
       setProtagonist(protagonistPlayer);
       setJoinedPlayers([protagonistPlayer]);
 
-      // ② Supabaseから候補プールを取得（主人公以外の固定グラフィック選手）
+      // ② Supabaseから候補プールを取得（特別選手および主人公を除外した固定グラフィック選手）
       const { data } = await supabase
         .from("bb6_players")
         .select("*")
@@ -97,7 +97,10 @@ export default function ScoutOpeningPage() {
 
       if (data && data.length > 0) {
         const uniques = data.filter(
-          (p) => hasUniqueImage(p) && p.id !== protagonistPlayer.id
+          (p) =>
+            hasUniqueImage(p) &&
+            p.id !== protagonistPlayer.id &&
+            !EXCLUDED_DRAFT_IDS.has(p.id) // ★ アジア選抜・全米選抜・実業団を完全除外
         );
         setCandidatePool(uniques);
       }
@@ -128,7 +131,7 @@ export default function ScoutOpeningPage() {
       const isSuccess = Math.random() < 0.65;
       if (isSuccess) {
         const successDialogues = [
-          "よろしくお願いします！ 一緒にインカレの頂点を目指しましょう！",
+          "よろしくお願いします！ 一緒に全国の頂点を目指しましょう！",
           "青葉女子大、すごく良い雰囲気ですね！ 私でよければ全力で力になります！",
           "エースがあなたなら心強い！ 私のバットで援護してみせます！",
           "誘ってくれて嬉しい！ 二つ返事で入部決定です！",
@@ -267,7 +270,7 @@ export default function ScoutOpeningPage() {
               青葉女子大学野球部 10名が堂々揃いました！
             </h2>
             <p className="text-xs md:text-sm text-amber-100 font-bold max-w-lg mx-auto">
-              頼もしい仲間たちとともに、いよいよインカレ1部リーグ第1節へ出陣です。
+              頼もしい仲間たちとともに、いよいよ大学公式リーグ第1節へ出陣です。
             </p>
             <button
               onClick={handleFinishScout}
@@ -403,9 +406,7 @@ export default function ScoutOpeningPage() {
         </div>
       )}
 
-      {/* ============================================================== */}
       {/* 1人ずつカードが立ち上がって回答する演出モーダル */}
-      {/* ============================================================== */}
       {currentCard && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">

@@ -3,6 +3,16 @@ import { supabase } from "@/lib/supabase";
 import { Player, PositionType, TeamOrder, UserTeam, LeagueTeam } from "@/types/baseball";
 import { OPPONENT_UNIVERSITIES, initLeagueData } from "@/lib/league";
 
+// スカウト・ドラフト候補から完全に除外する特別チーム選手IDのブラックリスト
+export const EXCLUDED_DRAFT_IDS = new Set<number>([
+  // アジア大学選抜（ID 246〜255）
+  246, 247, 248, 249, 250, 251, 252, 253, 254, 255,
+  // 全米カレッジ選抜（ID 256〜265）
+  256, 257, 258, 259, 260, 261, 262, 263, 264, 265,
+  // 実業団・社会人選抜（ID 800番台）
+  ...Array.from({ length: 50 }, (_, i) => 800 + i),
+]);
+
 export interface CooldownPlayer {
   playerId: number;
   remainingYears: number; // 2年待機なら 2 -> 1 -> 0(復帰)
@@ -14,22 +24,6 @@ const POSITIONS: PositionType[] = ["P", "C", "1B", "2B", "3B", "SS"];
  * 10名編成時の学年スロット（1年:3名, 2年:2名, 3年:3名, 4年:2名 = 計10名）
  */
 const INITIAL_GRADES = [1, 1, 1, 2, 2, 3, 3, 3, 4, 4];
-
-/**
- * ID 246〜255 のアジア選手権選手10名（2年目春からドラフトプールへ合流）
- */
-export const ASIA_PLAYERS: Player[] = [
-  { id: 246, name: "リン・ウェイツィン", main_position: "P", pitch_speed: 76, control: 78, contact: 65, power: 58, speed: 70, fielding: 72, arm: 75, grade: 1, batting_hand: "R", personality: "クール", image_url: "/246.jpg" },
-  { id: 247, name: "チェン・ユーリン", main_position: "C", pitch_speed: 60, control: 55, contact: 72, power: 76, speed: 64, fielding: 80, arm: 82, grade: 1, batting_hand: "R", personality: "頭脳派", image_url: "/247.jpg" },
-  { id: 248, name: "パク・ミンソ", main_position: "SS", pitch_speed: 60, control: 55, contact: 80, power: 68, speed: 84, fielding: 82, arm: 76, grade: 1, batting_hand: "L", personality: "熱血", image_url: "/248.jpg" },
-  { id: 249, name: "キム・ダヒョン", main_position: "1B", pitch_speed: 60, control: 55, contact: 68, power: 85, speed: 55, fielding: 68, arm: 70, grade: 1, batting_hand: "L", personality: "お調子者", image_url: "/249.jpg" },
-  { id: 250, name: "グエン・ティ・ハイ", main_position: "2B", pitch_speed: 60, control: 55, contact: 74, power: 60, speed: 82, fielding: 78, arm: 68, grade: 1, batting_hand: "R", personality: "努力家", image_url: "/250.jpg" },
-  { id: 251, name: "ソフィア・レイエス", main_position: "P", pitch_speed: 80, control: 70, contact: 60, power: 70, speed: 72, fielding: 70, arm: 80, grade: 1, batting_hand: "R", personality: "熱血", image_url: "/251.jpg" },
-  { id: 252, name: "ワン・ジンイー", main_position: "3B", pitch_speed: 60, control: 55, contact: 76, power: 78, speed: 68, fielding: 74, arm: 78, grade: 1, batting_hand: "R", personality: "クール", image_url: "/252.jpg" },
-  { id: 253, name: "カン・ジウ", main_position: "SS", pitch_speed: 60, control: 55, contact: 70, power: 66, speed: 88, fielding: 76, arm: 74, grade: 1, batting_hand: "L", personality: "マイペース", image_url: "/253.jpg" },
-  { id: 254, name: "タナポーン・スリ", main_position: "1B", pitch_speed: 60, control: 55, contact: 66, power: 82, speed: 75, fielding: 66, arm: 72, grade: 1, batting_hand: "R", personality: "お調子者", image_url: "/254.jpg" },
-  { id: 255, name: "リー・シュウイン", main_position: "P", pitch_speed: 74, control: 82, contact: 64, power: 55, speed: 65, fielding: 75, arm: 70, grade: 1, batting_hand: "L", personality: "頭脳派", image_url: "/255.jpg" },
-];
 
 /**
  * 固定画像（固有顔写真グラフィック）を持っているか判定
@@ -157,7 +151,7 @@ export function processYearEndGraduation(
 
 /**
  * 【ドラフト候補選手選出（春の新入部員スカウト用）】
- * 投手保証・2年目アジア合流・2年クールダウン・セーフティネット対応
+ * アジア・米国代表完全除外・投手保証・2年クールダウン・セーフティネット対応
  */
 export async function generateDraftCandidates(
   team: UserTeam,
@@ -179,15 +173,8 @@ export async function generateDraftCandidates(
     }
   }
 
-  let fullPool = [...pool];
-
-  // 2年目以降ならアジア選手10名を合流
-  if (team.current_year >= 2) {
-    const existingIds = new Set(fullPool.map((p) => p.id));
-    ASIA_PLAYERS.forEach((ap) => {
-      if (!existingIds.has(ap.id)) fullPool.push(ap);
-    });
-  }
+  // 特別枠（アジア・米国・実業団）を確実に排除
+  const fullPool = (pool || []).filter((p) => !EXCLUDED_DRAFT_IDS.has(p.id));
 
   const currentTeamIds = new Set(team.players.map((p) => p.id));
   const cooldownIds = new Set(((team as any).cooldowns || []).map((c: CooldownPlayer) => c.playerId));
@@ -246,7 +233,7 @@ export async function generateDraftCandidates(
 
 /**
  * 【開幕ドラフト（完全新規ニューゲーム用）】
- * 各大学に10名（1〜4年）を配分し初期化する
+ * 各大学に10名（1〜4年）を配分し初期化する（特別チーム選手は完全除外）
  */
 export async function executeOpeningDraft(userTeamName = "青葉女子大学野球部"): Promise<{
   userTeam: UserTeam;
@@ -261,9 +248,12 @@ export async function executeOpeningDraft(userTeamName = "青葉女子大学野�
     throw new Error("Supabaseからの選手データ取得に失敗しました。");
   }
 
+  // 特別枠（アジア・米国・実業団）を初期プールから完全に締め出す
+  const eligiblePool = (allPoolPlayers as Player[]).filter((p) => !EXCLUDED_DRAFT_IDS.has(p.id));
+
   const shuffle = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
 
-  const shuffledPool = shuffle(allPoolPlayers);
+  const shuffledPool = shuffle(eligiblePool);
   const protagonist = shuffledPool.find((p) => p.is_protagonist || p.id === 1);
   const candidatePool = shuffledPool.filter((p) => p.id !== protagonist?.id);
 
@@ -375,7 +365,7 @@ export async function executeOpeningDraft(userTeamName = "青葉女子大学野�
 
 /**
  * 【新シーズン開幕（全自動進行用エンジン）】
- * 4年生卒業 ➔ 1〜3年生進級 ➔ 2年クールダウン＆アジア選手対応 ➔ 補充完了
+ * 4年生卒業 ➔ 1〜3年生進級 ➔ 2年クールダウン対応 ➔ 補充完了（特別選手は完全除外）
  */
 export async function advanceToNextSeason(currentTeam: UserTeam): Promise<{
   userTeam: UserTeam;
@@ -390,13 +380,8 @@ export async function advanceToNextSeason(currentTeam: UserTeam): Promise<{
     throw new Error("Supabaseからの選手データ取得に失敗しました。");
   }
 
-  let fullPool = [...allPoolPlayers];
-  if (currentTeam.current_year + 1 >= 2) {
-    const existingIds = new Set(fullPool.map((p) => p.id));
-    ASIA_PLAYERS.forEach((ap) => {
-      if (!existingIds.has(ap.id)) fullPool.push(ap);
-    });
-  }
+  // 特別枠（アジア・米国・実業団）を除外
+  const fullPool = (allPoolPlayers as Player[]).filter((p) => !EXCLUDED_DRAFT_IDS.has(p.id));
 
   const shuffle = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
 
@@ -524,7 +509,7 @@ export async function advanceToNextSeason(currentTeam: UserTeam): Promise<{
 
 /**
  * 【開幕スカウト完了時の球団確定・初期化処理】
- * 獲得した10名（主人公＋9名）と、断られた選手が所属したライバル校を保存
+ * 獲得した10名（主人公＋9名）と、断られた選手が所属したライバル校を保存（特別選手は完全除外）
  */
 export async function finalizeOpeningScout(
   aobaPlayers: Player[],
@@ -535,8 +520,11 @@ export async function finalizeOpeningScout(
     .select("*")
     .order("id", { ascending: true });
 
+  // 特別枠（アジア・米国・実業団）を除外
+  const eligiblePool = ((allPoolPlayers || []) as Player[]).filter((p) => !EXCLUDED_DRAFT_IDS.has(p.id));
+
   const shuffle = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
-  const pool = shuffle(allPoolPlayers || []);
+  const pool = shuffle(eligiblePool);
 
   const userOrder = generateTeamOrder(aobaPlayers);
   const userTeam: UserTeam = {
