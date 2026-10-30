@@ -4,9 +4,9 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Player, UserTeam, PositionType, LeagueTeam, TeamOrder, SeasonPhase, PersonalityType } from "@/types/baseball";
-import { getCurrentOpponent, recordRoundResults, resetLeagueForNewSeason, growOpponentTeams, OPPONENT_UNIVERSITIES } from "@/lib/league";
+import { getCurrentOpponent, recordRoundResults, resetLeagueForNewSeason, growOpponentTeams, OPPONENT_UNIVERSITIES, loadLeagueData } from "@/lib/league";
 import { processYearEndGraduation } from "@/lib/draft";
-import { getScrimmageTeamA, getScrimmageTeamB, getCorporateAllStars, getCollegeAllStars, getAsiaAllStars } from "@/lib/specialTeams";
+import { getScrimmageTeamA, getScrimmageTeamB, getCorporateAllStars, getCollegeAllStars, getAsiaAllStars, getUsaAllStars } from "@/lib/specialTeams";
 import PlayerCardModal from "@/components/PlayerCardModal";
 import { 
   ChevronLeft, Trophy, Pause, Play, FastForward, AlertCircle, 
@@ -109,7 +109,10 @@ function getSeasonOpponent(team: UserTeam): LeagueTeam {
     return OPPONENT_UNIVERSITIES[1]; // 白百合（決勝）
   }
 
-  // AUTUMN（秋リーグ）
+  // AUTUMN（秋季公式リーグ7節 ＋ 優勝時第8戦全米選抜）
+  if (season === "AUTUMN" && (rnd === 8 || team.has_won_autumn)) {
+    return getUsaAllStars();
+  }
   return getCurrentOpponent(rnd);
 }
 
@@ -255,8 +258,14 @@ export default function MatchPage() {
     setActiveContributors({});
     
     const season = parsedTeam.current_season || "SPRING";
-    const seasonLabel = season === "SPRING" ? "春季プレシーズン" : season === "SUMMER" ? "夏の全日本インカレ" : "秋季公式リーグ";
-    setLog([`【${seasonLabel} 第${parsedTeam.current_round}戦】 プレイボール！`]);
+    const rnd = parsedTeam.current_round || 1;
+    let seasonLabel = "春季プレシーズン";
+    if (season === "SUMMER") {
+      seasonLabel = rnd === 4 ? "アジア大学選手権" : "夏の全国大会";
+    } else if (season === "AUTUMN") {
+      seasonLabel = (rnd === 8 || parsedTeam.has_won_autumn) ? "日米親善大学野球" : "秋季公式リーグ";
+    }
+    setLog([`【${seasonLabel} 第${rnd}戦】 プレイボール！`]);
 
     const g = gameRef.current;
     g.inning = 1;
@@ -502,22 +511,19 @@ export default function MatchPage() {
         g.ball.active = true;
 
         // ==========================================
-        // ★ 盗塁判定（投球開始と同時に走者がスタート）
+        // 盗塁判定（走力75以上＋性格に応じた確率）
         // ==========================================
         const r1 = g.runners.first;
         const r2 = g.runners.second;
         let stealAttempt: { runner: Player; from: "FIRST" | "SECOND"; to: "SECOND" | "THIRD" } | null = null;
 
-        // 1塁走者がいて2塁が空いている場合（2盗）
         if (r1 && !r2 && (r1.speed ?? 50) >= 75) {
           const mod = PERSONALITY_STEAL_MOD[r1.personality || "努力家"] || 1.0;
           const prob = ((r1.speed ?? 50) - 70) * 1.2 * mod;
           if (Math.random() * 100 < prob) {
             stealAttempt = { runner: r1, from: "FIRST", to: "SECOND" };
           }
-        }
-        // 2塁走者がいて3塁が空いている場合（3盗：警戒度高いため企図率0.4倍）
-        else if (r2 && !g.runners.third && (r2.speed ?? 50) >= 75) {
+        } else if (r2 && !g.runners.third && (r2.speed ?? 50) >= 75) {
           const mod = PERSONALITY_STEAL_MOD[r2.personality || "努力家"] || 1.0;
           const prob = ((r2.speed ?? 50) - 70) * 1.2 * mod * 0.4;
           if (Math.random() * 100 < prob) {
@@ -526,7 +532,6 @@ export default function MatchPage() {
         }
 
         if (stealAttempt) {
-          // 相手捕手の肩力を取得
           const oppCatcherId = g.isTop
             ? oppTeamData?.order?.defense_positions?.C
             : team?.order.defense_positions.C;
@@ -535,7 +540,6 @@ export default function MatchPage() {
             : (team?.players.find((p) => p.id === oppCatcherId) || team?.players[1]);
           const catcherArm = catcherPlayer?.arm ?? 65;
 
-          // 成功率計算：70 + (走力 - 肩力)*0.6 + 投球球種ボーナス(変化球+5, 直球-5)
           const baseProb = 70 + ((stealAttempt.runner.speed ?? 50) - catcherArm) * 0.6;
           const pitchMod = isBreaking ? 5 : -5;
           const successProb = Math.max(15, Math.min(90, baseProb + pitchMod));
@@ -548,10 +552,8 @@ export default function MatchPage() {
             isSuccess,
           };
 
-          // スタミナ消費
           g.stamina[stealAttempt.runner.id] = Math.max(5, (g.stamina[stealAttempt.runner.id] ?? 100) - 10);
 
-          // 走者アニメーション開始
           const startCoord = stealAttempt.from === "FIRST" ? FIELD.FIRST : FIELD.SECOND;
           const targetCoord = stealAttempt.to === "SECOND" ? FIELD.SECOND : FIELD.THIRD;
           g.movingRunners.push({
@@ -598,7 +600,7 @@ export default function MatchPage() {
       if (g.timer > 6) {
         const isStrike = Math.abs(g.ball.x - FIELD.HOME.x) <= 15;
 
-        // 打者がスイングしなかった場合（見逃し・ボール）➔ 盗塁クロスプレー判定へ
+        // 見逃し・ボール
         if (!g.batter.isSwinging) {
           if (g.stealingRunner) {
             startStealThrowSequence(g);
@@ -615,7 +617,7 @@ export default function MatchPage() {
         const tacticMod = g.tactic === "MEET" ? 0.12 : g.tactic === "POWER" ? -0.1 : 0;
         const meetChance = 0.68 + (contactVal - 50) * 0.003 + tacticMod + staminaTiredMod;
 
-        // 空振りの場合 ➔ 盗塁クロスプレー判定へ
+        // 空振り
         if (Math.random() > meetChance) {
           if (g.stealingRunner) {
             startStealThrowSequence(g);
@@ -625,7 +627,7 @@ export default function MatchPage() {
           return;
         }
 
-        // 打球が飛んだ場合（IN_PLAY）：盗塁は通常の打球処理・進塁に合流
+        // 打球が飛んだ場合（IN_PLAY）
         g.stealingRunner = null;
         g.movingRunners = g.movingRunners.filter((r) => r.id !== "stealer");
 
@@ -693,9 +695,7 @@ export default function MatchPage() {
         }
       }
     }
-    // ==========================================
-    // ★ THROWING_STEAL（盗塁阻止の送球クロスプレー）
-    // ==========================================
+    // THROWING_STEAL（盗塁阻止クロスプレー）
     else if (g.phase === "THROWING_STEAL") {
       g.ball.x += g.ball.vx;
       g.ball.y += g.ball.vy;
@@ -711,7 +711,6 @@ export default function MatchPage() {
         g.movingRunners = g.movingRunners.filter((r) => r.id !== "stealer");
 
         if (isSuccess && runner && to) {
-          // 盗塁成功！
           if (to === "SECOND") {
             g.runners.second = runner;
             if (from === "FIRST") g.runners.first = null;
@@ -722,7 +721,6 @@ export default function MatchPage() {
           setBanner({ text: "STOLEN BASE!! 盗塁成功!", color: "#16a34a" });
           setLog((prev) => [`見事なスタート！ 走者・${runner.name}が盗塁成功！`, ...prev.slice(0, 6)]);
         } else if (runner) {
-          // 盗塁失敗（盗塁死）
           g.outs++;
           if (from === "FIRST") g.runners.first = null;
           if (from === "SECOND") g.runners.second = null;
@@ -1105,7 +1103,6 @@ export default function MatchPage() {
     }
   };
 
-  // 盗塁送球フェーズの起動
   const startStealThrowSequence = (g: typeof gameRef.current) => {
     g.phase = "THROWING_STEAL";
     g.timer = 0;
@@ -1409,7 +1406,7 @@ export default function MatchPage() {
   };
 
   // ==============================================================
-  // 試合終了処理（春・夏・秋・冬の年間サイクルを完全連動）
+  // 試合終了処理（秋季リーグ制覇時の全米カレッジ選抜戦を完全統合）
   // ==============================================================
   const triggerMatchEnd = (g: typeof gameRef.current, isCold: boolean, reason: string) => {
     g.isGameOver = true;
@@ -1494,17 +1491,17 @@ export default function MatchPage() {
         let isSeasonEnd = false;
         let transitionMsg = "";
         let hasWonSummer = team.has_won_summer || false;
+        let hasWonAutumn = team.has_won_autumn || false;
 
         if (currentSeason === "SPRING") {
           // 春：プレシーズン4試合
           if (currentRnd < 4) {
             nextRound = currentRnd + 1;
           } else {
-            // 春4戦終了 ➔ 夏へ進出
             nextSeason = "SUMMER";
             nextRound = 1;
             hasWonSummer = false;
-            transitionMsg = "【春季プレシーズン全4試合完走！ 夏の全日本インカレ・トーナメントへ進出！】";
+            transitionMsg = "【春季プレシーズン全4試合完走！ 夏の全国大学トーナメントへ進出！】";
           }
         } else if (currentSeason === "SUMMER") {
           // 夏：トーナメント3試合 ＋ 優勝時アジア選手権
@@ -1514,40 +1511,53 @@ export default function MatchPage() {
             nextRound = 3; // 決勝へ
           } else if (currentRnd === 3) {
             if (resultType === "WIN") {
-              // 優勝！ アジア選手権へ進出
               nextRound = 4;
               hasWonSummer = true;
-              transitionMsg = "【全日本インカレ・トーナメント優勝！ 特別試合【アジア大学選手権】へ進出！】";
+              transitionMsg = "【全国大学トーナメント優勝！ 特別試合【アジア大学選手権】へ進出！】";
             } else {
-              // 敗退 ➔ 秋へ
               nextSeason = "AUTUMN";
               nextRound = 1;
-              transitionMsg = "【夏のトーナメント終了！ 秋のインカレ1部公式リーグへ！】";
+              transitionMsg = "【夏のトーナメント終了！ 秋の大学公式リーグへ！】";
             }
           } else if (currentRnd >= 4) {
-            // アジア選手権終了 ➔ 秋へ
             nextSeason = "AUTUMN";
             nextRound = 1;
-            transitionMsg = "【アジア大学選手権 激闘終了！ 秋のインカレ1部公式リーグへ！】";
+            transitionMsg = "【アジア大学選手権 激闘終了！ 秋の大学公式リーグへ！】";
           }
         } else if (currentSeason === "AUTUMN") {
-          // 秋：公式リーグ戦7節
-          try {
-            recordRoundResults(currentRnd, myFinal, oppFinal, team.team_name);
-          } catch (e) {
-            console.warn("順位表更新スキップ:", e);
+          // 秋：公式リーグ戦7節（第8戦の全米決戦は順位表更新対象外）
+          if (currentRnd <= 7) {
+            try {
+              recordRoundResults(currentRnd, myFinal, oppFinal, team.team_name);
+            } catch (e) {
+              console.warn("順位表更新スキップ:", e);
+            }
           }
 
           if (currentRnd < 7) {
             nextRound = currentRnd + 1;
-          } else {
-            // 第7節終了 ➔ 冬の世代交代・卒業・進級・ドラフト
+          } else if (currentRnd === 7) {
+            // 第7節終了時：優勝したか判定（最新順位表の1位が自軍か）
+            const leagueData = loadLeagueData(team.team_name);
+            const isChampion = leagueData.standings[0]?.teamId === 0;
+
+            if (isChampion) {
+              // リーグ制覇！ 第8戦（全米選抜戦）に進出！
+              nextRound = 8;
+              hasWonAutumn = true;
+              transitionMsg = "【秋季公式リーグ制覇！ 優勝特典【日米親善大学野球・全米カレッジ選抜戦】へ進出！】";
+            } else {
+              isSeasonEnd = true;
+              transitionMsg = "【秋の大学公式リーグ全日程終了！ 4年生引退・新歓ドラフトへ】";
+            }
+          } else if (currentRnd >= 8) {
+            // 第8戦（全米選抜戦）終了 ➔ 冬の世代交代へ
             isSeasonEnd = true;
-            transitionMsg = "【秋の公式リーグ全日程終了！ 4年生引退・新歓ドラフトへ】";
+            transitionMsg = "【日米親善大学野球 激闘終了！ 4年生引退・新歓ドラフトへ】";
           }
         }
 
-        // 第7節終了時の冬の世代交代処理
+        // シーズン終了時の世代交代処理
         if (isSeasonEnd) {
           const oppIds = new Set<number>();
           OPPONENT_UNIVERSITIES.forEach((t) => t.players?.forEach((p) => oppIds.add(p.id)));
@@ -1563,12 +1573,14 @@ export default function MatchPage() {
           // 順位表・タイトルのリセット
           resetLeagueForNewSeason(graduatedTeam.team_name);
 
-          // 敵チームの成長
+          // ライバル校の成長
           growOpponentTeams(graduatedTeam.current_year, resultType === "WIN");
 
           // 新年度の春へ
           graduatedTeam.current_season = "SPRING";
           graduatedTeam.current_round = 1;
+          graduatedTeam.has_won_summer = false;
+          graduatedTeam.has_won_autumn = false;
 
           localStorage.setItem("bb6_myTeam", JSON.stringify(graduatedTeam));
           setTeam(graduatedTeam);
@@ -1596,6 +1608,7 @@ export default function MatchPage() {
           current_season: nextSeason,
           current_round: nextRound,
           has_won_summer: hasWonSummer,
+          has_won_autumn: hasWonAutumn,
           players: updatedPlayers,
         };
 
@@ -1699,7 +1712,6 @@ export default function MatchPage() {
     ctx.strokeRect(FIELD.HOME.x - 52, FIELD.HOME.y - 18, 22, 38);
     ctx.strokeRect(FIELD.HOME.x + 30, FIELD.HOME.y - 18, 22, 38);
 
-    // バットスイングの軌跡エフェクト
     if (g.swingingFrames > 0 && g.swingingFrames < 8) {
       ctx.save();
       const originX = g.batter.isLeft ? g.batter.x - 12 : g.batter.x + 12;
@@ -1734,7 +1746,6 @@ export default function MatchPage() {
       ctx.restore();
     }
 
-    // インパクト閃光エフェクト
     if (g.impactEffect > 0) {
       ctx.save();
       ctx.translate(FIELD.HOME.x, FIELD.HOME.y - 15);
@@ -1758,7 +1769,6 @@ export default function MatchPage() {
       ctx.restore();
     }
 
-    // ボール本体と影
     if (g.ball.active || g.phase === "IN_PLAY" || g.phase === "THROWING" || g.phase === "THROWING_2B" || g.phase === "THROWING_1B_DP" || g.phase === "THROWING_HOME" || g.phase === "THROWING_STEAL") {
       ctx.fillStyle = "rgba(0,0,0,0.25)";
       ctx.beginPath();
@@ -1794,9 +1804,6 @@ export default function MatchPage() {
   };
 
   const oppStarters = oppTeamData.order?.batting_order || oppTeamData.players.slice(0, 6).map((p) => p.id);
-  const currentBatterPlayer: Player | undefined = displayState.isTop
-    ? team.players.find((p) => p.id === team.order.batting_order[displayState.batterIdx])
-    : oppTeamData.players.find((p) => p.id === oppStarters[displayState.oppBatterIdx]);
 
   const myTotal = displayState.myScore.reduce((a, b) => a + b, 0);
   const oppTotal = displayState.oppScore.reduce((a, b) => a + b, 0);
@@ -1874,7 +1881,6 @@ export default function MatchPage() {
     );
   };
 
-  // シーズン表記バッジの生成
   const currentSeason: SeasonPhase = team.current_season || "SPRING";
   const getSeasonBadgeText = () => {
     if (currentSeason === "SPRING") {
@@ -1882,9 +1888,12 @@ export default function MatchPage() {
       return `春季PS 第${team.current_round}戦 (${titles[team.current_round - 1] || "オープン戦"}) / 5イニング制`;
     }
     if (currentSeason === "SUMMER") {
-      if (team.current_round === 4) return "アジア大学選手権 (国際親善試合) / 5イニング制";
+      if (team.current_round === 4 || team.has_won_summer) return "アジア大学選手権 (国際親善試合) / 5イニング制";
       const rounds = ["1回戦", "準決勝", "決勝戦"];
-      return `全日本インカレ ${rounds[team.current_round - 1] || `${team.current_round}回戦`} / 5イニング制`;
+      return `全国大学トーナメント ${rounds[team.current_round - 1] || `${team.current_round}回戦`} / 5イニング制`;
+    }
+    if (team.current_round === 8 || team.has_won_autumn) {
+      return "日米親善決戦 (全米カレッジ選抜戦) / 5イニング制";
     }
     return `秋季公式リーグ 第${team.current_round}節 / 5イニング制`;
   };

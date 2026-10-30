@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserTeam, Player, PositionType, LeagueData, SeasonPhase, LeagueTeam } from "@/types/baseball";
 import { getCurrentOpponent, loadLeagueData, OPPONENT_UNIVERSITIES } from "@/lib/league";
-import { getScrimmageTeamA, getScrimmageTeamB, getCorporateAllStars, getCollegeAllStars, getAsiaAllStars } from "@/lib/specialTeams";
+import { getScrimmageTeamA, getScrimmageTeamB, getCorporateAllStars, getCollegeAllStars, getAsiaAllStars, getUsaAllStars } from "@/lib/specialTeams";
 import PlayerCardModal from "@/components/PlayerCardModal";
 import { 
   Trophy, Dumbbell, Building2, Play, Users, MessageSquare, 
@@ -52,7 +52,10 @@ function getSeasonOpponent(team: UserTeam): LeagueTeam {
     return OPPONENT_UNIVERSITIES[1]; // 白百合（決勝）
   }
 
-  // AUTUMN
+  // AUTUMN（秋季公式リーグ7節 ＋ 優勝時第8戦全米選抜）
+  if (season === "AUTUMN" && (rnd === 8 || team.has_won_autumn)) {
+    return getUsaAllStars();
+  }
   return getCurrentOpponent(rnd);
 }
 
@@ -125,7 +128,7 @@ export default function ClubhousePage() {
     return "/901.jpg";
   };
 
-  const oppFeature = opponent?.feature || opponent?.desc || "インカレ屈指の実力校";
+  const oppFeature = opponent?.feature || opponent?.desc || "大学女子野球屈指の実力校";
 
   // 季節に応じたナビゲーターセリフ
   const getSeasonDialogue = () => {
@@ -134,19 +137,34 @@ export default function ClubhousePage() {
         "まず初めに、「オーダー変更」で戦力を確認、次に「全体練習・特訓合宿」で練習、それから「試合を開始する（プレイボール）」へ進んでください！",
         `現在は春のプレシーズン！ 第${team.current_round}戦は【${opponent.name}】との一戦です！ 新入生の適性をしっかり試しましょう！`,
         "第3戦の実業団チームに勝利すると、企業から特別スポンサー料（多額の部費）が支給されますよ！",
-        "春の全4試合を完走すると、夏の全国インカレ・トーナメントへ進出できます！",
+        "春の全4試合を完走すると、夏の全国大学トーナメントへ進出できます！",
       ];
     }
     if (season === "SUMMER") {
+      if (team.current_round === 4 || team.has_won_summer) {
+        return [
+          "全国大会優勝、おめでとうございます！ ついにアジア最強『アジア大学選抜』との国際親善試合です！",
+          "アジア各地から集ったトップ選手たちを相手に、青葉のチームワークを見せつけましょう！",
+        ];
+      }
       return [
-        `夏の全日本インカレが開幕しました！ 第${team.current_round}戦の相手は【${opponent.name}】です！`,
-        "トーナメントで優勝すれば、アジア王者『アジア大学選抜』との特別マッチに挑戦できますよ！",
+        `夏の全国大学トーナメントが開幕しました！ 第${team.current_round}戦の相手は【${opponent.name}】です！`,
+        "トーナメントで優勝すれば、アジアの精鋭が集う『アジア大学選抜』との特別マッチに挑戦できますよ！",
         "夏の試合で得た部費は『全体練習・特訓合宿』に注ぎ込んで、秋の本番に向けて選手を一気に覚醒させましょう！",
       ];
     }
+    // AUTUMN
+    if (team.current_round === 8 || team.has_won_autumn) {
+      return [
+        "秋季リーグ制覇、本当におめでとうございます！ そして…ついに世界最強『全米カレッジ選抜』との日米決戦です！",
+        "本場アメリカの155km/h超の剛腕＆怪力スラッガー軍団！ 4年生最後の舞台、全力でぶつかりましょう！",
+        "この日米親善試合が終われば、4年生は名誉の卒業となります。歴史に名を刻む大金星を掴み取りましょう！",
+      ];
+    }
     return [
-      `いよいよ秋の本命、インカレ1部公式リーグ第${team.current_round}節！ 相手は【${opponent.name}】です！`,
+      `いよいよ秋の本番、大学公式リーグ第${team.current_round}節！ 相手は【${opponent.name}】です！`,
       "秋は全8大学による総当たり戦！ 4年生の先輩たちと一緒に、悲願のリーグ制覇を目指しましょう！",
+      "秋季リーグで優勝すると、王者特典として『全米カレッジ選抜』との日米親善決戦に挑めますよ！",
       "第7節が終わると4年生は卒業・引退となります。悔いのない戦いを繰り広げましょう！",
     ];
   };
@@ -279,9 +297,12 @@ export default function ClubhousePage() {
     if (season === "SUMMER") {
       if (team.current_round === 4 || team.has_won_summer) return "アジア大学選手権（国際大会）";
       const stages = ["1回戦", "準決勝", "決勝戦"];
-      return `全日本インカレ・トーナメント ${stages[team.current_round - 1] || `${team.current_round}回戦`}`;
+      return `全国大学トーナメント ${stages[team.current_round - 1] || `${team.current_round}回戦`}`;
     }
-    return `秋季インカレ1部公式リーグ 第${team.current_round}節`;
+    if (team.current_round === 8 || team.has_won_autumn) {
+      return "日米親善決戦（全米カレッジ選抜戦）";
+    }
+    return `秋季公式リーグ 第${team.current_round}節`;
   };
 
   return (
@@ -314,8 +335,10 @@ export default function ClubhousePage() {
                 {season === "SPRING"
                   ? `春季プレシーズン（第${team.current_round}/4戦） 新歓オープン戦 ＆ 適性テスト`
                   : season === "SUMMER"
-                  ? `全日本インカレ・トーナメント（第${team.current_round}戦） 全国覇者決定戦`
-                  : `6人制インカレ1部公式リーグ（現在 第${team.current_round}/7節）`}
+                  ? `全国大学トーナメント（第${team.current_round}戦） 全国覇者決定戦`
+                  : (team.current_round === 8 || team.has_won_autumn)
+                  ? `日米親善大学野球選手権（全米カレッジ選抜戦） 世界頂上決戦`
+                  : `6人制大学公式リーグ（現在 第${team.current_round}/7節）`}
               </p>
             </div>
           </div>
@@ -435,7 +458,7 @@ export default function ClubhousePage() {
 
           </div>
 
-          {/* 右側：次戦カード ＆ 季節別インテリジェント表示（春日程／夏トーナメント／秋順位表） */}
+          {/* 右側：次戦カード ＆ 季節別インテリジェント表示 */}
           <div className="lg:col-span-5 space-y-4">
             
             {/* 次戦対戦カード */}
@@ -531,7 +554,7 @@ export default function ClubhousePage() {
               <div className="bg-white border border-slate-200/80 rounded-3xl p-4 md:p-5 shadow-sm space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                   <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                    <Flame size={15} className="text-orange-600" /> 全日本インカレ・トーナメント進捗
+                    <Flame size={15} className="text-orange-600" /> 全国大学トーナメント進捗
                   </h3>
                   <span className="text-[10px] text-slate-500 font-mono font-bold">完全順位決定トーナメント</span>
                 </div>
@@ -591,10 +614,21 @@ export default function ClubhousePage() {
               <div className="bg-white border border-slate-200/80 rounded-3xl p-4 md:p-5 shadow-sm space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                   <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                    <Trophy size={15} className="text-amber-600" /> 秋季インカレ公式順位表
+                    <Trophy size={15} className="text-amber-600" /> 秋季公式リーグ順位表
                   </h3>
                   <span className="text-[10px] text-slate-700 font-mono font-bold">勝点制（勝2/分1）</span>
                 </div>
+
+                {(team.current_round === 8 || team.has_won_autumn) && (
+                  <div className="bg-blue-900 text-white p-2.5 rounded-2xl flex items-center justify-between text-xs font-bold shadow-md animate-pulse">
+                    <span className="flex items-center gap-1.5">
+                      <Crown size={15} className="text-amber-400" /> 秋季リーグ制覇！ 優勝特典【日米親善決戦】進出中！
+                    </span>
+                    <span className="text-[10px] bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-black">
+                      USA戦
+                    </span>
+                  </div>
+                )}
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-center border-collapse text-xs">
@@ -694,7 +728,7 @@ export default function ClubhousePage() {
                   <Award size={22} className="text-amber-600" />
                   <div>
                     <h3 className="text-base md:text-lg font-black text-slate-900">
-                      インカレ1部リーグ 個人タイトル争い（TOP 5）
+                      大学公式リーグ 個人タイトル争い（TOP 5）
                     </h3>
                     <span className="text-[10px] text-slate-500 font-mono font-bold">
                       現在 リーグ第{team.current_round}節（消化 {myStanding.wins + myStanding.losses + myStanding.draws}試合）時点
@@ -802,10 +836,10 @@ export default function ClubhousePage() {
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
             <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-              <HelpCircle size={20} className="text-amber-600" /> BB6 インカレ野球 ルール心得
+              <HelpCircle size={20} className="text-amber-600" /> ゲームの基本ルール・心得
             </h3>
             <div className="space-y-2.5 text-xs text-slate-700 leading-relaxed max-h-72 overflow-y-auto pr-1">
-              <p>・<strong>年間4シーズン制</strong>：春（プレシーズン4戦） ➔ 夏（全国トーナメント3戦＋アジア戦） ➔ 秋（公式リーグ7節） ➔ 冬（世代交代・ドラフト）のサイクルで進行します。</p>
+              <p>・<strong>年間4シーズン制</strong>：春（プレシーズン4戦） ➔ 夏（全国トーナメント3戦＋アジア戦） ➔ 秋（公式リーグ7節＋全米決戦） ➔ 冬（世代交代・ドラフト）のサイクルで進行します。</p>
               <p>・<strong>6人制野球</strong>：投手・捕手・一塁・二塁・三塁・遊撃の6名で守り、外野手はいません。抜けた打球は長打になります。</p>
               <p>・<strong>盗塁（スチール）システム</strong>：走力75以上の選手は、性格に応じた確率で自動スタート！ 捕手の肩力との勝負になります。</p>
               <p>・<strong>打順スロット固定</strong>：選手は最初に打席へ入った打順の席（1〜6番）に固定されます。別の打順へ入ることはできません。</p>

@@ -400,3 +400,159 @@ export function getSpringPreSeasonOpponent(
       return getCollegeAllStars(savedOpponents);
   }
 }
+
+// lib/specialTeams.ts の末尾に追記
+
+// ==========================================
+// 8. 秋 リーグ優勝特典：全米カレッジ選抜（USA All-Stars）
+//    ID 256〜265 の米国スーパースター軍団
+// ==========================================
+export const USA_PLAYERS: Player[] = [
+  {
+    id: 256,
+    name: "ジェシカ・ミラー",
+    main_position: "P",
+    grade: 3,
+    batting_hand: "R",
+    image_url: "/256.jpg",
+    contact: 74, power: 80, speed: 76, arm: 92, fielding: 84,
+    pitch_speed: 92, // 155km/h超の豪速球
+    control: 82, stamina: 90, breaking_ball: 86,
+    personality: "熱血",
+    nickname: "カリフォルニア・エクスプレス",
+    description: "全米最速を誇る剛腕エース。打撃でも鋭い打球を連発する投打の二刀流。",
+  },
+  {
+    id: 257,
+    name: "エミリー・クラーク",
+    main_position: "C",
+    grade: 4,
+    batting_hand: "R",
+    image_url: "/257.jpg",
+    contact: 80, power: 86, speed: 64, arm: 94, fielding: 90,
+    pitch_speed: 60, control: 55,
+    personality: "頭脳派",
+    nickname: "全米No.1コマンダー",
+    description: "強肩強打の司令塔。盗塁を一切許さないレーザービーム送球と的確なリードが武器。",
+  },
+  {
+    id: 258,
+    name: "アシュリー・スミス",
+    main_position: "1B",
+    grade: 4,
+    batting_hand: "L",
+    image_url: "/258.jpg",
+    contact: 78, power: 96, speed: 58, arm: 82, fielding: 78,
+    pitch_speed: 55, control: 50,
+    personality: "お調子者",
+    nickname: "テキサス・モンスター",
+    description: "全米大学屈指のスラッガー。芯で捉えた打球はすべて場外へと消え去る。",
+  },
+  {
+    id: 259,
+    name: "クロエ・ジョンソン",
+    main_position: "2B",
+    grade: 2,
+    batting_hand: "R",
+    image_url: "/259.jpg",
+    contact: 86, power: 68, speed: 84, arm: 80, fielding: 92,
+    pitch_speed: 50, control: 50,
+    personality: "クール",
+    nickname: "ダイヤモンドの芸術家",
+    description: "華麗なグラブ捌きと正確無比なミート力。守備範囲の広さは全米屈指。",
+  },
+  {
+    id: 260,
+    name: "マディソン・ウィリアムズ",
+    main_position: "3B",
+    grade: 3,
+    batting_hand: "R",
+    image_url: "/260.jpg",
+    contact: 82, power: 88, speed: 72, arm: 88, fielding: 84,
+    pitch_speed: 60, control: 55,
+    personality: "努力家",
+    nickname: "鉄壁のホットコーナー",
+    description: "強烈なライナーを軽々とさばき、得点圏では確実にランナーを還す勝負師。",
+  },
+  {
+    id: 261,
+    name: "サマンサ・テイラー",
+    main_position: "SS",
+    grade: 4,
+    batting_hand: "L",
+    image_url: "/261.jpg",
+    contact: 88, power: 76, speed: 94, arm: 86, fielding: 94,
+    pitch_speed: 60, control: 55,
+    personality: "熱血",
+    nickname: "全米カレッジキャプテン",
+    description: "走攻守すべてが超一流の主将。高い出塁率と俊足でチームを勝利に導く。",
+  },
+  {
+    id: 262,
+    name: "オリビア・ブラウン",
+    main_position: "P",
+    grade: 2,
+    batting_hand: "L",
+    image_url: "/262.jpg",
+    contact: 65, power: 70, speed: 68, arm: 85, fielding: 80,
+    pitch_speed: 86, control: 88, stamina: 82, breaking_ball: 92,
+    personality: "クール",
+    nickname: "サウスポー・ドクターK",
+    description: "鋭いスクリューとスライダーで三振の山を築く強力リリーフサウスポー。",
+  },
+  {
+    id: 263,
+    name: "ソフィア・デイビス",
+    main_position: "1B",
+    grade: 3,
+    batting_hand: "R",
+    image_url: "/263.jpg",
+    contact: 76, power: 92, speed: 60, arm: 76, fielding: 74,
+    pitch_speed: 50, control: 50,
+    personality: "マイペース",
+    nickname: "全米代打の切り札",
+  },
+  {
+    id: 264,
+    name: "アバ・ウィルソン",
+    main_position: "SS",
+    grade: 1,
+    batting_hand: "L",
+    image_url: "/264.jpg",
+    contact: 80, power: 58, speed: 96, arm: 78, fielding: 86,
+    pitch_speed: 50, control: 50,
+    personality: "お調子者",
+    nickname: "スピードスター",
+  },
+  {
+    id: 265,
+    name: "イザベラ・トーマス",
+    main_position: "C",
+    grade: 2,
+    batting_hand: "R",
+    image_url: "/265.jpg",
+    contact: 75, power: 80, speed: 66, arm: 86, fielding: 86,
+    pitch_speed: 55, control: 50,
+    personality: "努力家",
+    nickname: "万能サブ捕手",
+  },
+];
+
+export function getUsaAllStars(): LeagueTeam {
+  const usaRoster = [...USA_PLAYERS];
+  const order = generateTeamOrder(usaRoster);
+
+  return {
+    id: 886,
+    name: "全米カレッジ選抜（USA All-Stars）",
+    shortName: "全米選抜",
+    initial: "米",
+    color: "#1e3a8a",
+    badgeColor: "bg-blue-900 text-white border-blue-700",
+    desc: "全米大学女子野球の頂点！ メジャー級の体格とパワーを誇る世界最強軍団",
+    feature: "秋季リーグ制覇の王者のみが挑める世界最高峰マッチ！ 勝利で伝説へ！",
+    strength: { pitch: 92, contact: 88, power: 94, speed: 86, defense: 90 },
+    players: usaRoster,
+    order,
+  };
+}
