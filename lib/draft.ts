@@ -26,6 +26,22 @@ const POSITIONS: PositionType[] = ["P", "C", "1B", "2B", "3B", "SS"];
 const INITIAL_GRADES = [1, 1, 1, 2, 2, 3, 3, 3, 4, 4];
 
 /**
+ * ID 246〜255 のアジア選手権選手10名（lib/specialTeams.ts で参照）
+ */
+export const ASIA_PLAYERS: Player[] = [
+  { id: 246, name: "リン・ウェイツィン", main_position: "P", pitch_speed: 76, control: 78, contact: 65, power: 58, speed: 70, fielding: 72, arm: 75, grade: 1, batting_hand: "R", personality: "クール", image_url: "/246.jpg" },
+  { id: 247, name: "チェン・ユーリン", main_position: "C", pitch_speed: 60, control: 55, contact: 72, power: 76, speed: 64, fielding: 80, arm: 82, grade: 1, batting_hand: "R", personality: "頭脳派", image_url: "/247.jpg" },
+  { id: 248, name: "パク・ミンソ", main_position: "SS", pitch_speed: 60, control: 55, contact: 80, power: 68, speed: 84, fielding: 82, arm: 76, grade: 1, batting_hand: "L", personality: "熱血", image_url: "/248.jpg" },
+  { id: 249, name: "キム・ダヒョン", main_position: "1B", pitch_speed: 60, control: 55, contact: 68, power: 85, speed: 55, fielding: 68, arm: 70, grade: 1, batting_hand: "L", personality: "お調子者", image_url: "/249.jpg" },
+  { id: 250, name: "グエン・ティ・ハイ", main_position: "2B", pitch_speed: 60, control: 55, contact: 74, power: 60, speed: 82, fielding: 78, arm: 68, grade: 1, batting_hand: "R", personality: "努力家", image_url: "/250.jpg" },
+  { id: 251, name: "ソフィア・レイエス", main_position: "P", pitch_speed: 80, control: 70, contact: 60, power: 70, speed: 72, fielding: 70, arm: 80, grade: 1, batting_hand: "R", personality: "熱血", image_url: "/251.jpg" },
+  { id: 252, name: "ワン・ジンイー", main_position: "3B", pitch_speed: 60, control: 55, contact: 76, power: 78, speed: 68, fielding: 74, arm: 78, grade: 1, batting_hand: "R", personality: "クール", image_url: "/252.jpg" },
+  { id: 253, name: "カン・ジウ", main_position: "SS", pitch_speed: 60, control: 55, contact: 70, power: 66, speed: 88, fielding: 76, arm: 74, grade: 1, batting_hand: "L", personality: "マイペース", image_url: "/253.jpg" },
+  { id: 254, name: "タナポーン・スリ", main_position: "1B", pitch_speed: 60, control: 55, contact: 66, power: 82, speed: 75, fielding: 66, arm: 72, grade: 1, batting_hand: "R", personality: "お調子者", image_url: "/254.jpg" },
+  { id: 255, name: "リー・シュウイン", main_position: "P", pitch_speed: 74, control: 82, contact: 64, power: 55, speed: 65, fielding: 75, arm: 70, grade: 1, batting_hand: "L", personality: "頭脳派", image_url: "/255.jpg" },
+];
+
+/**
  * 固定画像（固有顔写真グラフィック）を持っているか判定
  */
 export function hasUniqueImage(player: Player): boolean {
@@ -120,7 +136,6 @@ export function processYearEndGraduation(
     .filter((p) => (p.grade ?? 1) < 4)
     .map((p) => ({ ...p, grade: (p.grade ?? 1) + 1 }));
 
-  // 既存のクールダウン年数を1減算（1年待機だったものは0となり復帰）
   const nextCooldowns: CooldownPlayer[] = [];
   ((team as any).cooldowns || []).forEach((cd: CooldownPlayer) => {
     if (cd.remainingYears > 1) {
@@ -128,7 +143,6 @@ export function processYearEndGraduation(
     }
   });
 
-  // 今回卒業した選手を「2年待機」で追加
   graduating.forEach((p) => {
     nextCooldowns.push({ playerId: p.id, remainingYears: 2 });
   });
