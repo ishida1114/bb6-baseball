@@ -7,6 +7,8 @@ import { UserTeam, Player, PositionType, LeagueData, SeasonPhase, LeagueTeam } f
 import { getCurrentOpponent, loadLeagueData, OPPONENT_UNIVERSITIES } from "@/lib/league";
 import { getScrimmageTeamA, getScrimmageTeamB, getCorporateAllStars, getCollegeAllStars, getAsiaAllStars, getUsaAllStars } from "@/lib/specialTeams";
 import PlayerCardModal from "@/components/PlayerCardModal";
+import SoundToggle from "@/components/SoundToggle";
+import { playBgm } from "@/lib/sound";
 import { 
   Trophy, Dumbbell, Building2, Play, Users, MessageSquare, 
   Sparkles, Award, ChevronRight, HelpCircle, Shield, Crown, Flame, Zap, Gauge, X, CheckCircle2, Clock
@@ -22,9 +24,6 @@ interface TitleRankEntry {
   detail: string;
 }
 
-/**
- * 季節とラウンドに応じた対戦相手チームの動的選出
- */
 function getSeasonOpponent(team: UserTeam): LeagueTeam {
   const season: SeasonPhase = team.current_season || "SPRING";
   const rnd = team.current_round || 1;
@@ -47,12 +46,11 @@ function getSeasonOpponent(team: UserTeam): LeagueTeam {
     if (rnd === 4 || team.has_won_summer) {
       return getAsiaAllStars();
     }
-    if (rnd === 1) return OPPONENT_UNIVERSITIES[6]; // 富士見
-    if (rnd === 2) return OPPONENT_UNIVERSITIES[2]; // 黒潮
-    return OPPONENT_UNIVERSITIES[1]; // 白百合（決勝）
+    if (rnd === 1) return OPPONENT_UNIVERSITIES[6];
+    if (rnd === 2) return OPPONENT_UNIVERSITIES[2];
+    return OPPONENT_UNIVERSITIES[1];
   }
 
-  // AUTUMN（秋季公式リーグ7節 ＋ 優勝時第8戦全米選抜）
   if (season === "AUTUMN" && (rnd === 8 || team.has_won_autumn)) {
     return getUsaAllStars();
   }
@@ -75,6 +73,9 @@ export default function ClubhousePage() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   useEffect(() => {
+    // クラブハウスBGM再生
+    playBgm("clubhouse");
+
     const saved = localStorage.getItem("bb6_myTeam");
     if (!saved) {
       router.replace("/title");
@@ -130,7 +131,6 @@ export default function ClubhousePage() {
 
   const oppFeature = opponent?.feature || opponent?.desc || "大学女子野球屈指の実力校";
 
-  // 季節に応じたナビゲーターセリフ
   const getSeasonDialogue = () => {
     if (season === "SPRING") {
       return [
@@ -153,7 +153,6 @@ export default function ClubhousePage() {
         "夏の試合で得た部費は『全体練習・特訓合宿』に注ぎ込んで、秋の本番に向けて選手を一気に覚醒させましょう！",
       ];
     }
-    // AUTUMN
     if (team.current_round === 8 || team.has_won_autumn) {
       return [
         "秋季リーグ制覇、本当におめでとうございます！ そして…ついに世界最強『全米カレッジ選抜』との日米決戦です！",
@@ -178,7 +177,6 @@ export default function ClubhousePage() {
 
   const currentDialogue = dialogues[dialogueIndex % dialogues.length];
 
-  // チーム成績・消化試合数と連動するランキング計算
   const playedMatches = Math.max(1, myStanding.wins + myStanding.losses + myStanding.draws);
   const protoLastName = protagonist?.name.split(" ")[0] || "神崎";
   const batter1LastName = team.players[1]?.name.split(" ")[0] || "林田";
@@ -288,7 +286,6 @@ export default function ClubhousePage() {
     },
   ];
 
-  // 対戦カードバッジのテキスト取得
   const getMatchCardBadgeText = () => {
     if (season === "SPRING") {
       const titles = ["学内紅白戦 A", "学内紅白戦 B", "全日本実業団選抜戦", "大学オールスター戦"];
@@ -350,6 +347,9 @@ export default function ClubhousePage() {
                 {team.tp_funds.toLocaleString()} <span className="text-xs text-slate-600 font-normal">万円</span>
               </span>
             </div>
+
+            {/* 音のオン／オフ切り替えボタン */}
+            <SoundToggle />
 
             <button
               onClick={() => setIsHelpOpen(true)}
@@ -461,7 +461,6 @@ export default function ClubhousePage() {
           {/* 右側：次戦カード ＆ 季節別インテリジェント表示 */}
           <div className="lg:col-span-5 space-y-4">
             
-            {/* 次戦対戦カード */}
             <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                 <span className="bg-amber-100 text-amber-900 text-[11px] font-black px-3 py-1 rounded-full border border-amber-300">
@@ -489,7 +488,6 @@ export default function ClubhousePage() {
               </Link>
             </div>
 
-            {/* 季節連動パネル（春: 日程表 / 夏: トーナメント進捗 / 秋: 順位表） */}
             {season === "SPRING" && (
               <div className="bg-white border border-slate-200/80 rounded-3xl p-4 md:p-5 shadow-sm space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">

@@ -8,6 +8,8 @@ import { getCurrentOpponent, recordRoundResults, resetLeagueForNewSeason, growOp
 import { processYearEndGraduation } from "@/lib/draft";
 import { getScrimmageTeamA, getScrimmageTeamB, getCorporateAllStars, getCollegeAllStars, getAsiaAllStars, getUsaAllStars } from "@/lib/specialTeams";
 import PlayerCardModal from "@/components/PlayerCardModal";
+import SoundToggle from "@/components/SoundToggle";
+import { playBgm, playSe } from "@/lib/sound";
 import { 
   ChevronLeft, Trophy, Pause, Play, FastForward, AlertCircle, 
   Gauge, ArrowRightLeft, Users, Info, X, Sparkles, Scale, Swords, ShieldHalf, Check, GraduationCap, Flame
@@ -257,6 +259,10 @@ export default function MatchPage() {
     setHomeInEffect(false);
     setActiveContributors({});
     
+    // 試合開始BGM ＆ プレイボールSE
+    playBgm("playingmarch");
+    playSe("playball");
+
     const season = parsedTeam.current_season || "SPRING";
     const rnd = parsedTeam.current_round || 1;
     let seasonLabel = "春季プレシーズン";
@@ -719,6 +725,8 @@ export default function MatchPage() {
           setBanner({ text: "STOLEN BASE!! 盗塁成功!", color: "#16a34a" });
           setLog((prev) => [`見事なスタート！ 走者・${runner.name}が盗塁成功！`, ...prev.slice(0, 6)]);
         } else if (runner) {
+          // 盗塁死SE
+          playSe("out");
           g.outs++;
           if (from === "FIRST") g.runners.first = null;
           if (from === "SECOND") g.runners.second = null;
@@ -836,6 +844,7 @@ export default function MatchPage() {
       const ballDist = Math.hypot(g.ball.x - FIELD.SECOND.x, g.ball.y - FIELD.SECOND.y);
 
       if (ballDist < 16 || g.timer > 30) {
+        playSe("out"); // 2塁フォースアウト
         g.outs++;
         g.movingRunners = g.movingRunners.filter((r) => r.id !== "runner1");
         g.runners.first = null;
@@ -887,6 +896,7 @@ export default function MatchPage() {
         const isDoublePlay = runnerDist > 14;
 
         if (isDoublePlay) {
+          playSe("out"); // 1塁併殺アウト
           g.outs++;
           g.movingRunners = g.movingRunners.filter((r) => r.id !== "batter");
           applyGroundAdvanceRunners(g);
@@ -984,6 +994,7 @@ export default function MatchPage() {
         if (!isBatterOut) {
           executeAtBatResult(g, "SINGLE", "俊足を飛ばしてセーフ！ 内野安打！", currentBatter);
         } else {
+          playSe("out"); // 1塁ゴロアウト
           g.outs++;
           g.strikes = 0; g.balls = 0;
           g.movingRunners = g.movingRunners.filter((r) => r.id !== "batter");
@@ -1066,6 +1077,7 @@ export default function MatchPage() {
             return;
           }
         } else {
+          playSe("out"); // 本塁タッチアウト
           g.outs++;
           setBanner({ text: "DOUBLE PLAY!!", color: "#e11d48" });
           setLog((prev) => ["本塁タッチアウト！ 併殺（ダブルプレー）成立！", ...prev.slice(0, 6)]);
@@ -1119,6 +1131,7 @@ export default function MatchPage() {
   };
 
   const triggerInningChangeSequence = (g: typeof gameRef.current, logText: string) => {
+    playSe("out"); // 攻守交代SE
     setBanner({ text: "3アウト チェンジ！", color: "#e11d48" });
     setLog((prev) => [logText, ...prev.slice(0, 6)]);
     g.phase = "INNING_CHANGE_WAIT";
@@ -1183,8 +1196,10 @@ export default function MatchPage() {
       : (oppTeamData?.players.find((p) => p.id === oppStarters[g.oppBatterIdx]) || oppTeamData?.players[g.oppBatterIdx]);
 
     if (type === "STRIKE") {
+      playSe("strike"); // ストライクSE
       g.strikes++;
       if (g.strikes >= 3) {
+        playSe("out"); // 三振アウトSE
         g.outs++;
         if (g.isTop && currentBatter) {
           g.stamina[currentBatter.id] = Math.max(5, (g.stamina[currentBatter.id] ?? 100) - 10);
@@ -1205,6 +1220,7 @@ export default function MatchPage() {
       }
       setBanner({ text, color: "#e11d48" });
     } else {
+      playSe("ball"); // ボールSE
       g.balls++;
       if (g.balls >= 4) {
         setBanner({ text: "FOUR BALL (四球)", color: "#2563eb" });
@@ -1241,6 +1257,7 @@ export default function MatchPage() {
     }
 
     if (outcome === "OUT") {
+      playSe("out"); // アウトSE
       g.outs++;
       g.movingRunners = g.movingRunners.filter((r) => r.id !== "batter");
 
@@ -1403,11 +1420,12 @@ export default function MatchPage() {
     syncUI();
   };
 
-  // ==============================================================
-  // 試合終了処理（秋季リーグ制覇時の全米カレッジ選抜戦を完全統合）
-  // ==============================================================
   const triggerMatchEnd = (g: typeof gameRef.current, isCold: boolean, reason: string) => {
     g.isGameOver = true;
+
+    // 試合終了SE ＆ 表彰式・エンディングBGM
+    playSe("gameset");
+    playBgm("ending");
 
     const myFinal = g.myScore.reduce((a, b) => a + b, 0);
     const oppFinal = g.oppScore.reduce((a, b) => a + b, 0);
@@ -1478,9 +1496,6 @@ export default function MatchPage() {
           return updated;
         });
 
-        // ==========================================
-        // シーズン進行ロジック
-        // ==========================================
         const currentSeason: SeasonPhase = team.current_season || "SPRING";
         const currentRnd = team.current_round || 1;
 
@@ -1492,7 +1507,6 @@ export default function MatchPage() {
         let hasWonAutumn = team.has_won_autumn || false;
 
         if (currentSeason === "SPRING") {
-          // 春：プレシーズン4試合
           if (currentRnd < 4) {
             nextRound = currentRnd + 1;
           } else {
@@ -1502,11 +1516,10 @@ export default function MatchPage() {
             transitionMsg = "【春季プレシーズン全4試合完走！ 夏の全国大学トーナメントへ進出！】";
           }
         } else if (currentSeason === "SUMMER") {
-          // 夏：トーナメント3試合 ＋ 優勝時アジア選手権
           if (currentRnd === 1) {
-            nextRound = 2; // 準決勝へ
+            nextRound = 2;
           } else if (currentRnd === 2) {
-            nextRound = 3; // 決勝へ
+            nextRound = 3;
           } else if (currentRnd === 3) {
             if (resultType === "WIN") {
               nextRound = 4;
@@ -1523,7 +1536,6 @@ export default function MatchPage() {
             transitionMsg = "【アジア大学選手権 激闘終了！ 秋の大学公式リーグへ！】";
           }
         } else if (currentSeason === "AUTUMN") {
-          // 秋：公式リーグ戦7節（第8戦の全米決戦は順位表更新対象外）
           if (currentRnd <= 7) {
             try {
               recordRoundResults(currentRnd, myFinal, oppFinal, team.team_name);
@@ -1535,12 +1547,10 @@ export default function MatchPage() {
           if (currentRnd < 7) {
             nextRound = currentRnd + 1;
           } else if (currentRnd === 7) {
-            // 第7節終了時：優勝したか判定（最新順位表の1位が自軍か）
             const leagueData = loadLeagueData(team.team_name);
             const isChampion = leagueData.standings[0]?.teamId === 0;
 
             if (isChampion) {
-              // リーグ制覇！ 第8戦（全米選抜戦）に進出！
               nextRound = 8;
               hasWonAutumn = true;
               transitionMsg = "【秋季公式リーグ制覇！ 優勝特典【日米親善大学野球・全米カレッジ選抜戦】へ進出！】";
@@ -1549,13 +1559,11 @@ export default function MatchPage() {
               transitionMsg = "【秋の大学公式リーグ全日程終了！ 4年生引退・新歓ドラフトへ】";
             }
           } else if (currentRnd >= 8) {
-            // 第8戦（全米選抜戦）終了 ➔ 冬の世代交代へ
             isSeasonEnd = true;
             transitionMsg = "【日米親善大学野球 激闘終了！ 4年生引退・新歓ドラフトへ】";
           }
         }
 
-        // シーズン終了時の世代交代処理
         if (isSeasonEnd) {
           const oppIds = new Set<number>();
           OPPONENT_UNIVERSITIES.forEach((t) => t.players?.forEach((p) => oppIds.add(p.id)));
@@ -1568,13 +1576,9 @@ export default function MatchPage() {
 
           const { updatedTeam: graduatedTeam, graduatedPlayers } = processYearEndGraduation(teamWithGrownPlayers, oppIds);
 
-          // 順位表・タイトルのリセット
           resetLeagueForNewSeason(graduatedTeam.team_name);
-
-          // ライバル校の成長
           growOpponentTeams(graduatedTeam.current_year, resultType === "WIN");
 
-          // 新年度の春へ
           graduatedTeam.current_season = "SPRING";
           graduatedTeam.current_round = 1;
           graduatedTeam.has_won_summer = false;
@@ -1599,7 +1603,6 @@ export default function MatchPage() {
           return;
         }
 
-        // 通常の次戦移行
         const updatedTeam: UserTeam = {
           ...team,
           tp_funds: team.tp_funds + earnedTp,
@@ -1911,6 +1914,9 @@ export default function MatchPage() {
               {currentSeason === "SUMMER" && <Flame size={12} className="text-orange-600" />}
               {getSeasonBadgeText()}
             </span>
+
+            {/* 音のオン／オフ切り替えボタン */}
+            <SoundToggle />
 
             <button
               onClick={() => setIsPaused(!isPaused)}

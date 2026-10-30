@@ -4,6 +4,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserTeam } from "@/types/baseball";
+import { playBgm } from "@/lib/sound";
+import SoundToggle from "@/components/SoundToggle";
 import { Play, RotateCcw } from "lucide-react";
 
 export default function TitlePage() {
@@ -12,6 +14,9 @@ export default function TitlePage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // タイトルBGM再生
+    playBgm("opening");
+
     const saved = localStorage.getItem("bb6_myTeam");
     if (saved) {
       try {
@@ -22,7 +27,7 @@ export default function TitlePage() {
     }
   }, []);
 
-  // はじめから（完全初期化 ＆ 主人公作成画面へ）
+  // はじめから
   const handleNewGame = async () => {
     if (savedTeam && !confirm("既存のセーブデータを削除し、新入生エースの作成から新しく開始しますか？")) {
       return;
@@ -41,23 +46,27 @@ export default function TitlePage() {
     }
   };
 
-  // つづきから（クラブハウスへ）
+  // つづきから
   const handleContinue = () => {
     router.push("/");
   };
 
   return (
     <div className="h-[100dvh] w-full bg-slate-950 flex flex-col items-center justify-end relative overflow-hidden select-none font-sans pb-6 sm:pb-10">
-      {/* メインビジュアル背景（2層レイヤーでスマホ画面に美フィット） */}
+      
+      {/* 画面右上の音量オン／オフボタン */}
+      <div className="absolute top-4 right-4 z-20">
+        <SoundToggle className="bg-slate-900/80 backdrop-blur-md border-white/20 text-white" />
+      </div>
+
+      {/* メインビジュアル背景 */}
       <div className="absolute inset-0 z-0 overflow-hidden">
-        {/* 背景ブラー層（アスペクト比の差による余白を自然に埋める） */}
         <img
           src="/title.png"
           alt=""
           aria-hidden="true"
           className="w-full h-full object-cover object-center blur-lg opacity-40 scale-110"
         />
-        {/* メイン画像層（スマホでは全体が収まるようcontain、画面が広い場合はcover） */}
         <div className="absolute inset-0 flex items-center justify-center">
           <img
             src="/title.png"
@@ -65,14 +74,11 @@ export default function TitlePage() {
             className="w-full h-full object-contain sm:object-cover object-top sm:object-center"
           />
         </div>
-        {/* 下部ボタン用グラデーションオーバーレイ */}
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent pointer-events-none" />
       </div>
 
       {/* 操作ボタンエリア */}
       <div className="relative z-10 max-w-sm sm:max-w-md w-full px-4 sm:px-6 flex flex-col items-center space-y-3">
-        
-        {/* つづきから */}
         {savedTeam && (
           <button
             onClick={handleContinue}
@@ -96,7 +102,6 @@ export default function TitlePage() {
           </button>
         )}
 
-        {/* はじめから（主人公作成へ） */}
         <button
           onClick={handleNewGame}
           disabled={loading}
@@ -124,7 +129,6 @@ export default function TitlePage() {
           </span>
         </button>
 
-        {/* ロード中インジケーター */}
         {loading && (
           <div className="text-[11px] font-mono font-black text-amber-300 animate-pulse bg-slate-900/90 px-3.5 py-1 rounded-full border border-amber-400/50 shadow-lg text-center">
             入学手続き中... キャラ作成画面へ進みます
@@ -132,7 +136,7 @@ export default function TitlePage() {
         )}
 
         <div className="text-[10px] text-white/70 font-mono font-bold drop-shadow pt-0.5">
-          © BB6 Intercollegiate Baseball Simulation
+          © 監督、プレイボールです！～カレッジガールズ・6ベースボール～
         </div>
       </div>
     </div>
