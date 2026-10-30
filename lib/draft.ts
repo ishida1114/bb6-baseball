@@ -1,33 +1,36 @@
 // lib/draft.ts
 import { supabase } from "@/lib/supabase";
-import { Player, PositionType, TeamOrder, UserTeam, LeagueTeam } from "@/types/baseball";
+import { Player, PositionType, TeamOrder, UserTeam, LeagueTeam, PersonalityType } from "@/types/baseball";
 import { OPPONENT_UNIVERSITIES, initLeagueData } from "@/lib/league";
 
 // スカウト・ドラフト候補から完全に除外する特別チーム選手IDのブラックリスト
 export const EXCLUDED_DRAFT_IDS = new Set<number>([
-  // アジア大学選抜（ID 246〜255）
-  246, 247, 248, 249, 250, 251, 252, 253, 254, 255,
-  // 全米カレッジ選抜（ID 256〜265）
-  256, 257, 258, 259, 260, 261, 262, 263, 264, 265,
-  // 実業団・社会人選抜（ID 800番台）
-  ...Array.from({ length: 50 }, (_, i) => 800 + i),
+  246, 247, 248, 249, 250, 251, 252, 253, 254, 255, // アジア大学選抜
+  256, 257, 258, 259, 260, 261, 262, 263, 264, 265, // 全米カレッジ選抜
+  ...Array.from({ length: 50 }, (_, i) => 800 + i),   // 実業団・社会人選抜
 ]);
 
 export interface CooldownPlayer {
   playerId: number;
-  remainingYears: number; // 2年待機なら 2 -> 1 -> 0(復帰)
+  remainingYears: number;
+}
+
+export interface PlayerCareer {
+  title: string;
+  desc: string;
+  badge: string;
+  isPro: boolean;
+  lastMessage: string;
+  statRating: number;
+}
+
+export interface GraduatedPlayerWithCareer extends Player {
+  career: PlayerCareer;
 }
 
 const POSITIONS: PositionType[] = ["P", "C", "1B", "2B", "3B", "SS"];
-
-/**
- * 10名編成時の学年スロット（1年:3名, 2年:2名, 3年:3名, 4年:2名 = 計10名）
- */
 const INITIAL_GRADES = [1, 1, 1, 2, 2, 3, 3, 3, 4, 4];
 
-/**
- * ID 246〜255 のアジア選手権選手10名（lib/specialTeams.ts で参照）
- */
 export const ASIA_PLAYERS: Player[] = [
   { id: 246, name: "リン・ウェイツィン", main_position: "P", pitch_speed: 76, control: 78, contact: 65, power: 58, speed: 70, fielding: 72, arm: 75, grade: 1, batting_hand: "R", personality: "クール", image_url: "/246.jpg" },
   { id: 247, name: "チェン・ユーリン", main_position: "C", pitch_speed: 60, control: 55, contact: 72, power: 76, speed: 64, fielding: 80, arm: 82, grade: 1, batting_hand: "R", personality: "頭脳派", image_url: "/247.jpg" },
@@ -41,9 +44,6 @@ export const ASIA_PLAYERS: Player[] = [
   { id: 255, name: "リー・シュウイン", main_position: "P", pitch_speed: 74, control: 82, contact: 64, power: 55, speed: 65, fielding: 75, arm: 70, grade: 1, batting_hand: "L", personality: "頭脳派", image_url: "/255.jpg" },
 ];
 
-/**
- * 固定画像（固有顔写真グラフィック）を持っているか判定
- */
 export function hasUniqueImage(player: Player): boolean {
   if (player.is_protagonist) return true;
   if (!player.image_url) return false;
@@ -52,13 +52,9 @@ export function hasUniqueImage(player: Player): boolean {
   return !url.includes("901.jpg");
 }
 
-/**
- * 配属された10名の中から、最適な守備位置（6名）、打順（1〜6番）、ベンチ（4名）を自動編成する
- */
 export function generateTeamOrder(players: Player[]): TeamOrder {
   const assignedDefense: Partial<Record<PositionType, number>> = {};
   const remainingPlayers = [...players];
-
   const priorityPositions: PositionType[] = ["P", "C", "SS", "2B", "3B", "1B"];
 
   for (const pos of priorityPositions) {
@@ -88,7 +84,6 @@ export function generateTeamOrder(players: Player[]): TeamOrder {
   }
 
   const starters = Object.values(assignedDefense) as number[];
-
   const starterPlayers = starters.map((id) => players.find((p) => p.id === id)!);
   starterPlayers.sort((a, b) => {
     const scoreA = a.contact * 1.2 + a.power * 1.0 + a.speed * 0.8;
@@ -120,18 +115,92 @@ export function generateTeamOrder(players: Player[]): TeamOrder {
 }
 
 /**
- * 【年末世代交代処理】
- * 4年生のみ引退 ➔ 在校生進級（grade + 1） ➔ 卒業生を「2年クールダウン」へ登録 ➔ 満了生を復帰
+ * 選手の能力値・性格に応じた進路およびラストメッセージの自動生成
+ */
+export function determineCareerAndMessage(player: Player): GraduatedPlayerWithCareer {
+  const isP = player.main_position === "P";
+  const avgStat = isP
+    ? ((player.pitch_speed || 65) + (player.control || 65) + (player.fielding || 65)) / 3
+    : ((player.contact || 60) + (player.power || 60) + (player.speed || 60) + (player.fielding || 60) + (player.arm || 60)) / 5;
+
+  // 主人公補正
+  const effectiveRating = player.is_protagonist ? avgStat + 6 : avgStat;
+
+  let title = "大手スポーツ用品メーカー 開発部";
+  let desc = "4年間の選手経験を活かし、次世代の野球ギア開発に挑む！";
+  let badge = "bg-slate-700 text-white font-bold";
+  let isPro = false;
+
+  if (effectiveRating >= 74) {
+    title = "女子プロ野球 ドラフト1位指名";
+    desc = "球界を背負って立つスーパースターとしてプロ最高峰の舞台へ！";
+    badge = "bg-amber-500 text-slate-950 font-black";
+    isPro = true;
+  } else if (effectiveRating >= 70) {
+    title = "実業団名門・大日本バイオ野球部";
+    desc = "社会人女子野球最高峰の舞台で即戦力レギュラーとして活躍期待！";
+    badge = "bg-blue-600 text-white font-bold";
+  } else if (effectiveRating >= 65) {
+    title = "実業団・サクラ重工女子野球部";
+    desc = "日本選手権制覇を目指す強豪チームの主力選手へ抜擢！";
+    badge = "bg-blue-700 text-white font-bold";
+  } else if (effectiveRating >= 60) {
+    title = "青葉女子大学野球部 学生コーチ就任";
+    desc = "後輩たちの技術とメンタルを支える名参謀としてチームに残る！";
+    badge = "bg-purple-600 text-white font-bold";
+  } else if (effectiveRating >= 56) {
+    title = "社会人クラブチーム ＆ 大手総合商社";
+    desc = "仕事と野球をハイレベルに両立する文武両道のキャリア！";
+    badge = "bg-emerald-600 text-white font-bold";
+  } else if (effectiveRating >= 52) {
+    title = "高等学校 保健体育教諭（野球部顧問）";
+    desc = "次世代の全国を目指す女子球児を育てる熱血指導者へ！";
+    badge = "bg-teal-700 text-white font-bold";
+  }
+
+  const lastMessages: Record<PersonalityType, string> = {
+    熱血: "監督と泣き笑いしながら全力疾走した4年間、一生の宝物です！ 次の舞台でも泥臭く全力で挑んできます！",
+    頭脳派: "監督の戦術やデータ野球、本当に深く勉強になりました。次の進路でも緻密な戦略で勝ち上がってみせます！",
+    お調子者: "監督〜！ 私がいなくなって泣かないでくださいね！ プロでもド派手にホームラン打って自慢の後輩になりますから！",
+    クール: "…4年間、本当にありがとうございました。監督の元で野球ができて、心から幸せでした。",
+    努力家: "最初はついていくのがやっとだった私が、ここまで成長できました。監督に教わった粘り強さで社会でも頑張ります！",
+    マイペース: "監督、4年間マイペースな私を見守ってくれてありがとうございました〜！ 次の場所でも自分らしくいきますね。",
+  };
+
+  let lastMessage = lastMessages[player.personality || "努力家"] || lastMessages["努力家"];
+  if (player.is_protagonist) {
+    lastMessage = "監督、私をここまで育ててくれて本当にありがとうございました！ 監督と出会えたから、私はマウンドで輝くことができました。青葉で過ごした日々を胸に、次の世界でも全力で腕を振ってきます！";
+  }
+
+  return {
+    ...player,
+    career: {
+      title,
+      desc,
+      badge,
+      isPro,
+      lastMessage,
+      statRating: Math.round(avgStat),
+    },
+  };
+}
+
+/**
+ * 【年末世代交代処理】進路情報＆主人公卒業フラグ付き
  */
 export function processYearEndGraduation(
   team: UserTeam,
   oppPlayerIds?: Set<number>
 ): {
   updatedTeam: UserTeam;
-  graduatedPlayers: Player[];
+  graduatedPlayers: GraduatedPlayerWithCareer[];
   neededDraftCount: number;
+  isProtagonistGraduating: boolean;
 } {
-  const graduating = team.players.filter((p) => (p.grade ?? 1) >= 4);
+  const graduatingRaw = team.players.filter((p) => (p.grade ?? 1) >= 4);
+  const graduatedWithCareer = graduatingRaw.map(determineCareerAndMessage);
+  const isProtagonistGraduating = graduatedWithCareer.some((p) => p.is_protagonist);
+
   const remaining = team.players
     .filter((p) => (p.grade ?? 1) < 4)
     .map((p) => ({ ...p, grade: (p.grade ?? 1) + 1 }));
@@ -143,7 +212,7 @@ export function processYearEndGraduation(
     }
   });
 
-  graduating.forEach((p) => {
+  graduatingRaw.forEach((p) => {
     nextCooldowns.push({ playerId: p.id, remainingYears: 2 });
   });
 
@@ -158,15 +227,12 @@ export function processYearEndGraduation(
 
   return {
     updatedTeam,
-    graduatedPlayers: graduating,
+    graduatedPlayers: graduatedWithCareer,
     neededDraftCount: Math.max(1, 10 - remaining.length),
+    isProtagonistGraduating,
   };
 }
 
-/**
- * 【ドラフト候補選手選出（春の新入部員スカウト用）】
- * アジア・米国代表完全除外・投手保証・2年クールダウン・セーフティネット対応
- */
 export async function generateDraftCandidates(
   team: UserTeam,
   oppPlayerIds: Set<number>,
@@ -187,13 +253,11 @@ export async function generateDraftCandidates(
     }
   }
 
-  // 特別枠（アジア・米国・実業団）を確実に排除
   const fullPool = (pool || []).filter((p) => !EXCLUDED_DRAFT_IDS.has(p.id));
 
   const currentTeamIds = new Set(team.players.map((p) => p.id));
   const cooldownIds = new Set(((team as any).cooldowns || []).map((c: CooldownPlayer) => c.playerId));
 
-  // フリー候補（青葉在籍中、クールダウン中、他校在籍中を除外）
   const availablePool = fullPool.filter(
     (p) => !currentTeamIds.has(p.id) && !cooldownIds.has(p.id) && !oppPlayerIds.has(p.id)
   );
@@ -201,7 +265,6 @@ export async function generateDraftCandidates(
   const shuffle = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
   const shuffled = shuffle(availablePool);
 
-  // 投手保証判定：青葉の在校投手が1名以下なら必ず投手を1名以上含める
   const currentPitcherCount = team.players.filter((p) => p.main_position === "P").length;
   const needPitcherGuarantee = currentPitcherCount <= 1;
 
@@ -215,12 +278,10 @@ export async function generateDraftCandidates(
     }
   }
 
-  // 5名になるまで補充
   while (candidates.length < 5 && shuffled.length > 0) {
     candidates.push({ ...shuffled.shift()!, grade: 1 });
   }
 
-  // セーフティネット：プール不足時の汎用生自動生成
   let fallbackId = 9101;
   while (candidates.length < 5) {
     const needP = !candidates.some((c) => c.main_position === "P") && currentPitcherCount === 0;
@@ -245,10 +306,6 @@ export async function generateDraftCandidates(
   return candidates;
 }
 
-/**
- * 【開幕ドラフト（完全新規ニューゲーム用）】
- * 各大学に10名（1〜4年）を配分し初期化する（特別チーム選手は完全除外）
- */
 export async function executeOpeningDraft(userTeamName = "青葉女子大学野球部"): Promise<{
   userTeam: UserTeam;
   leagueTeams: LeagueTeam[];
@@ -262,9 +319,7 @@ export async function executeOpeningDraft(userTeamName = "青葉女子大学野�
     throw new Error("Supabaseからの選手データ取得に失敗しました。");
   }
 
-  // 特別枠（アジア・米国・実業団）を初期プールから完全に締め出す
   const eligiblePool = (allPoolPlayers as Player[]).filter((p) => !EXCLUDED_DRAFT_IDS.has(p.id));
-
   const shuffle = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
 
   const shuffledPool = shuffle(eligiblePool);
@@ -280,7 +335,6 @@ export async function executeOpeningDraft(userTeamName = "青葉女子大学野�
     teamRosters[0].push({ ...protagonist, grade: 1 });
   }
 
-  // 1. 各大学に固定画像選手を2〜3名均等配分
   for (let teamIdx = 0; teamIdx < 8; teamIdx++) {
     const currentUniques = teamRosters[teamIdx].filter(hasUniqueImage).length;
     if (currentUniques < 1 && uniquePool.length > 0) {
@@ -303,7 +357,6 @@ export async function executeOpeningDraft(userTeamName = "青葉女子大学野�
     }
   }
 
-  // 2. 各チームに投手（P）を最低1名確保
   for (let teamIdx = 0; teamIdx < 8; teamIdx++) {
     const hasPitcher = teamRosters[teamIdx].some((p) => p.main_position === "P");
     if (!hasPitcher) {
@@ -319,7 +372,6 @@ export async function executeOpeningDraft(userTeamName = "青葉女子大学野�
     }
   }
 
-  // 3. 各チーム10名固定まで補充
   for (let teamIdx = 0; teamIdx < 8; teamIdx++) {
     while (teamRosters[teamIdx].length < 10 && genericPool.length > 0) {
       teamRosters[teamIdx].push(genericPool.pop()!);
@@ -331,7 +383,6 @@ export async function executeOpeningDraft(userTeamName = "青葉女子大学野�
     }
   }
 
-  // 4. 初回の学年配分（主人公以外の選手に1〜4年を割り振り）
   for (let teamIdx = 0; teamIdx < 8; teamIdx++) {
     const grades = shuffle([...INITIAL_GRADES]);
     teamRosters[teamIdx] = teamRosters[teamIdx].map((p, idx) => {
@@ -340,7 +391,6 @@ export async function executeOpeningDraft(userTeamName = "青葉女子大学野�
     });
   }
 
-  // 5. オーダー自動編成
   const userTeamPlayers = teamRosters[0];
   const userOrder = generateTeamOrder(userTeamPlayers);
 
@@ -366,7 +416,6 @@ export async function executeOpeningDraft(userTeamName = "青葉女子大学野�
     };
   });
 
-  // 6. 保存
   if (typeof window !== "undefined") {
     localStorage.setItem("bb6_myTeam", JSON.stringify(userTeam));
     const initialLeague = initLeagueData(userTeamName);
@@ -377,10 +426,6 @@ export async function executeOpeningDraft(userTeamName = "青葉女子大学野�
   return { userTeam, leagueTeams };
 }
 
-/**
- * 【新シーズン開幕（全自動進行用エンジン）】
- * 4年生卒業 ➔ 1〜3年生進級 ➔ 2年クールダウン対応 ➔ 補充完了（特別選手は完全除外）
- */
 export async function advanceToNextSeason(currentTeam: UserTeam): Promise<{
   userTeam: UserTeam;
   leagueTeams: LeagueTeam[];
@@ -394,9 +439,7 @@ export async function advanceToNextSeason(currentTeam: UserTeam): Promise<{
     throw new Error("Supabaseからの選手データ取得に失敗しました。");
   }
 
-  // 特別枠（アジア・米国・実業団）を除外
   const fullPool = (allPoolPlayers as Player[]).filter((p) => !EXCLUDED_DRAFT_IDS.has(p.id));
-
   const shuffle = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
 
   let currentLeagueTeams: LeagueTeam[] = [];
@@ -423,14 +466,12 @@ export async function advanceToNextSeason(currentTeam: UserTeam): Promise<{
     ...currentLeagueTeams.map((t) => t.players),
   ];
 
-  // 1. 各大学で「4年生の卒業」＆「1〜3年生の進級（grade + 1）」
   const retainedTeams: Player[][] = allTeamsPlayers.map((teamList) => {
     return teamList
       .filter((p) => (p.grade ?? 1) < 4)
       .map((p) => ({ ...p, grade: (p.grade ?? 1) + 1 }));
   });
 
-  // クールダウン更新
   const nextCooldowns: CooldownPlayer[] = [];
   ((currentTeam as any).cooldowns || []).forEach((cd: CooldownPlayer) => {
     if (cd.remainingYears > 1) {
@@ -450,14 +491,12 @@ export async function advanceToNextSeason(currentTeam: UserTeam): Promise<{
 
   const cdIds = new Set(nextCooldowns.map((c) => c.playerId));
 
-  // 2. プールから在籍中およびクールダウン中を除外
   const rookieCandidatePool = shuffle(
     fullPool.filter((p) => !retainedIds.has(p.id) && !cdIds.has(p.id))
   );
   const uniqueRookiePool = rookieCandidatePool.filter((p) => hasUniqueImage(p));
   const genericRookiePool = rookieCandidatePool.filter((p) => !hasUniqueImage(p));
 
-  // 3. 各大学10名まで補充
   for (let teamIdx = 0; teamIdx < 8; teamIdx++) {
     const currentUniques = retainedTeams[teamIdx].filter(hasUniqueImage).length;
     while (retainedTeams[teamIdx].length < 10 && currentUniques < 2 && uniqueRookiePool.length > 0) {
@@ -475,7 +514,6 @@ export async function advanceToNextSeason(currentTeam: UserTeam): Promise<{
       retainedTeams[teamIdx].push({ ...rookie, grade: 1 });
     }
 
-    // 投手保証
     const hasPitcher = retainedTeams[teamIdx].some((p) => p.main_position === "P");
     if (!hasPitcher) {
       const pRookie = rookieCandidatePool.find(
@@ -487,7 +525,6 @@ export async function advanceToNextSeason(currentTeam: UserTeam): Promise<{
     }
   }
 
-  // 4. 各大学のオーダー再編成
   const nextUserPlayers = retainedTeams[0];
   const nextUserOrder = generateTeamOrder(nextUserPlayers);
 
@@ -521,10 +558,6 @@ export async function advanceToNextSeason(currentTeam: UserTeam): Promise<{
   return { userTeam: nextUserTeam, leagueTeams: nextLeagueTeams };
 }
 
-/**
- * 【開幕スカウト完了時の球団確定・初期化処理】
- * 獲得した10名（主人公＋9名）と、断られた選手が所属したライバル校を保存（特別選手は完全除外）
- */
 export async function finalizeOpeningScout(
   aobaPlayers: Player[],
   rejectedMap: Record<number, string>
@@ -534,9 +567,7 @@ export async function finalizeOpeningScout(
     .select("*")
     .order("id", { ascending: true });
 
-  // 特別枠（アジア・米国・実業団）を除外
   const eligiblePool = ((allPoolPlayers || []) as Player[]).filter((p) => !EXCLUDED_DRAFT_IDS.has(p.id));
-
   const shuffle = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
   const pool = shuffle(eligiblePool);
 

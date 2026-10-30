@@ -5,14 +5,14 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Player, UserTeam, PositionType, LeagueTeam, TeamOrder, SeasonPhase, PersonalityType } from "@/types/baseball";
 import { getCurrentOpponent, recordRoundResults, resetLeagueForNewSeason, growOpponentTeams, OPPONENT_UNIVERSITIES, loadLeagueData } from "@/lib/league";
-import { processYearEndGraduation } from "@/lib/draft";
+import { processYearEndGraduation, GraduatedPlayerWithCareer } from "@/lib/draft";
 import { getScrimmageTeamA, getScrimmageTeamB, getCorporateAllStars, getCollegeAllStars, getAsiaAllStars, getUsaAllStars } from "@/lib/specialTeams";
 import PlayerCardModal from "@/components/PlayerCardModal";
 import SoundToggle from "@/components/SoundToggle";
 import { playBgm, playSe } from "@/lib/sound";
 import { 
   ChevronLeft, Trophy, Pause, Play, FastForward, AlertCircle, 
-  Gauge, ArrowRightLeft, Users, Info, X, Sparkles, Scale, Swords, ShieldHalf, Check, GraduationCap, Flame
+  Gauge, ArrowRightLeft, Users, Info, X, Sparkles, Scale, Swords, ShieldHalf, Check, GraduationCap, Flame, Crown, Heart, Award, ArrowRight
 } from "lucide-react";
 import Link from "next/link";
 
@@ -33,7 +33,6 @@ export const calcDisplaySpeed = (pitchSpeed: number, isBreaking: boolean, stamin
   return { kmh: Math.min(165, straightKmh), ballType: "ストレート" };
 };
 
-// 6種類の性格ごとの盗塁企図係数
 const PERSONALITY_STEAL_MOD: Record<PersonalityType, number> = {
   お調子者: 1.4,
   熱血: 1.3,
@@ -80,9 +79,6 @@ interface MatchGrowthPlayer {
   val: number;
 }
 
-/**
- * 季節と節に応じた対戦相手の動的選出
- */
 function getSeasonOpponent(team: UserTeam): LeagueTeam {
   const season: SeasonPhase = team.current_season || "SPRING";
   const rnd = team.current_round || 1;
@@ -105,13 +101,11 @@ function getSeasonOpponent(team: UserTeam): LeagueTeam {
     if (rnd === 4 || team.has_won_summer) {
       return getAsiaAllStars();
     }
-    // 夏トーナメント3戦
-    if (rnd === 1) return OPPONENT_UNIVERSITIES[6]; // 富士見
-    if (rnd === 2) return OPPONENT_UNIVERSITIES[2]; // 黒潮
-    return OPPONENT_UNIVERSITIES[1]; // 白百合（決勝）
+    if (rnd === 1) return OPPONENT_UNIVERSITIES[6];
+    if (rnd === 2) return OPPONENT_UNIVERSITIES[2];
+    return OPPONENT_UNIVERSITIES[1];
   }
 
-  // AUTUMN（秋季公式リーグ7節 ＋ 優勝時第8戦全米選抜）
   if (season === "AUTUMN" && (rnd === 8 || team.has_won_autumn)) {
     return getUsaAllStars();
   }
@@ -182,9 +176,13 @@ export default function MatchPage() {
     finalOpp: number;
     grownPlayers: MatchGrowthPlayer[];
     isSeasonEnd?: boolean;
-    graduatedCount?: number;
+    graduatedList?: GraduatedPlayerWithCareer[];
+    isProtagonistGraduating?: boolean;
     transitionMsg?: string;
   } | null>(null);
+
+  // グランドエンディング表示用ステート
+  const [showGrandEnding, setShowGrandEnding] = useState(false);
 
   const [banner, setBanner] = useState<{ text: string; color: string } | null>(null);
   const [homeInEffect, setHomeInEffect] = useState(false);
@@ -254,12 +252,12 @@ export default function MatchPage() {
 
   const initNewMatch = useCallback((parsedTeam: UserTeam) => {
     setMatchResult(null);
+    setShowGrandEnding(false);
     setIsPaused(false);
     setBanner(null);
     setHomeInEffect(false);
     setActiveContributors({});
     
-    // 試合開始BGM ＆ プレイボールSE
     playBgm("playingmarch");
     playSe("playball");
 
@@ -438,7 +436,6 @@ export default function MatchPage() {
 
     if (g.impactEffect > 0) g.impactEffect--;
 
-    // 走者移動（走力に応じた自然な速度）
     g.movingRunners.forEach((r) => {
       if (r.active && r.waypoints.length > 0) {
         const target = r.waypoints[0];
@@ -516,7 +513,6 @@ export default function MatchPage() {
         g.ball.curve = isBreaking ? (Math.random() > 0.5 ? 0.042 : -0.042) : 0;
         g.ball.active = true;
 
-        // 盗塁判定
         const r1 = g.runners.first;
         const r2 = g.runners.second;
         let stealAttempt: { runner: Player; from: "FIRST" | "SECOND"; to: "SECOND" | "THIRD" } | null = null;
@@ -604,7 +600,6 @@ export default function MatchPage() {
       if (g.timer > 6) {
         const isStrike = Math.abs(g.ball.x - FIELD.HOME.x) <= 15;
 
-        // 見逃し・ボール
         if (!g.batter.isSwinging) {
           if (g.stealingRunner) {
             startStealThrowSequence(g);
@@ -621,7 +616,6 @@ export default function MatchPage() {
         const tacticMod = g.tactic === "MEET" ? 0.12 : g.tactic === "POWER" ? -0.1 : 0;
         const meetChance = 0.68 + (contactVal - 50) * 0.003 + tacticMod + staminaTiredMod;
 
-        // 空振り
         if (Math.random() > meetChance) {
           if (g.stealingRunner) {
             startStealThrowSequence(g);
@@ -631,7 +625,6 @@ export default function MatchPage() {
           return;
         }
 
-        // 打球が飛んだ場合（IN_PLAY）
         g.stealingRunner = null;
         g.movingRunners = g.movingRunners.filter((r) => r.id !== "stealer");
 
@@ -699,7 +692,7 @@ export default function MatchPage() {
         }
       }
     }
-    // THROWING_STEAL（盗塁阻止クロスプレー）
+    // THROWING_STEAL
     else if (g.phase === "THROWING_STEAL") {
       g.ball.x += g.ball.vx;
       g.ball.y += g.ball.vy;
@@ -725,7 +718,6 @@ export default function MatchPage() {
           setBanner({ text: "STOLEN BASE!! 盗塁成功!", color: "#16a34a" });
           setLog((prev) => [`見事なスタート！ 走者・${runner.name}が盗塁成功！`, ...prev.slice(0, 6)]);
         } else if (runner) {
-          // 盗塁死SE
           playSe("out");
           g.outs++;
           if (from === "FIRST") g.runners.first = null;
@@ -844,7 +836,7 @@ export default function MatchPage() {
       const ballDist = Math.hypot(g.ball.x - FIELD.SECOND.x, g.ball.y - FIELD.SECOND.y);
 
       if (ballDist < 16 || g.timer > 30) {
-        playSe("out"); // 2塁フォースアウト
+        playSe("out");
         g.outs++;
         g.movingRunners = g.movingRunners.filter((r) => r.id !== "runner1");
         g.runners.first = null;
@@ -896,7 +888,7 @@ export default function MatchPage() {
         const isDoublePlay = runnerDist > 14;
 
         if (isDoublePlay) {
-          playSe("out"); // 1塁併殺アウト
+          playSe("out");
           g.outs++;
           g.movingRunners = g.movingRunners.filter((r) => r.id !== "batter");
           applyGroundAdvanceRunners(g);
@@ -994,7 +986,7 @@ export default function MatchPage() {
         if (!isBatterOut) {
           executeAtBatResult(g, "SINGLE", "俊足を飛ばしてセーフ！ 内野安打！", currentBatter);
         } else {
-          playSe("out"); // 1塁ゴロアウト
+          playSe("out");
           g.outs++;
           g.strikes = 0; g.balls = 0;
           g.movingRunners = g.movingRunners.filter((r) => r.id !== "batter");
@@ -1077,7 +1069,7 @@ export default function MatchPage() {
             return;
           }
         } else {
-          playSe("out"); // 本塁タッチアウト
+          playSe("out");
           g.outs++;
           setBanner({ text: "DOUBLE PLAY!!", color: "#e11d48" });
           setLog((prev) => ["本塁タッチアウト！ 併殺（ダブルプレー）成立！", ...prev.slice(0, 6)]);
@@ -1131,7 +1123,7 @@ export default function MatchPage() {
   };
 
   const triggerInningChangeSequence = (g: typeof gameRef.current, logText: string) => {
-    playSe("out"); // 攻守交代SE
+    playSe("out");
     setBanner({ text: "3アウト チェンジ！", color: "#e11d48" });
     setLog((prev) => [logText, ...prev.slice(0, 6)]);
     g.phase = "INNING_CHANGE_WAIT";
@@ -1196,10 +1188,10 @@ export default function MatchPage() {
       : (oppTeamData?.players.find((p) => p.id === oppStarters[g.oppBatterIdx]) || oppTeamData?.players[g.oppBatterIdx]);
 
     if (type === "STRIKE") {
-      playSe("strike"); // ストライクSE
+      playSe("strike");
       g.strikes++;
       if (g.strikes >= 3) {
-        playSe("out"); // 三振アウトSE
+        playSe("out");
         g.outs++;
         if (g.isTop && currentBatter) {
           g.stamina[currentBatter.id] = Math.max(5, (g.stamina[currentBatter.id] ?? 100) - 10);
@@ -1220,7 +1212,7 @@ export default function MatchPage() {
       }
       setBanner({ text, color: "#e11d48" });
     } else {
-      playSe("ball"); // ボールSE
+      playSe("ball");
       g.balls++;
       if (g.balls >= 4) {
         setBanner({ text: "FOUR BALL (四球)", color: "#2563eb" });
@@ -1257,7 +1249,7 @@ export default function MatchPage() {
     }
 
     if (outcome === "OUT") {
-      playSe("out"); // アウトSE
+      playSe("out");
       g.outs++;
       g.movingRunners = g.movingRunners.filter((r) => r.id !== "batter");
 
@@ -1423,7 +1415,6 @@ export default function MatchPage() {
   const triggerMatchEnd = (g: typeof gameRef.current, isCold: boolean, reason: string) => {
     g.isGameOver = true;
 
-    // 試合終了SE ＆ 表彰式・エンディングBGM
     playSe("gameset");
     playBgm("ending");
 
@@ -1564,6 +1555,7 @@ export default function MatchPage() {
           }
         }
 
+        // シーズン終了時の世代交代処理
         if (isSeasonEnd) {
           const oppIds = new Set<number>();
           OPPONENT_UNIVERSITIES.forEach((t) => t.players?.forEach((p) => oppIds.add(p.id)));
@@ -1574,7 +1566,8 @@ export default function MatchPage() {
             players: updatedPlayers,
           };
 
-          const { updatedTeam: graduatedTeam, graduatedPlayers } = processYearEndGraduation(teamWithGrownPlayers, oppIds);
+          // ★ 卒業生に進路・メッセージ・主人公卒業判定を付与
+          const { updatedTeam: graduatedTeam, graduatedPlayers, isProtagonistGraduating } = processYearEndGraduation(teamWithGrownPlayers, oppIds);
 
           resetLeagueForNewSeason(graduatedTeam.team_name);
           growOpponentTeams(graduatedTeam.current_year, resultType === "WIN");
@@ -1597,7 +1590,8 @@ export default function MatchPage() {
             finalOpp: oppFinal,
             grownPlayers: grownList,
             isSeasonEnd: true,
-            graduatedCount: graduatedPlayers.length,
+            graduatedList: graduatedPlayers,
+            isProtagonistGraduating,
             transitionMsg,
           });
           return;
@@ -1805,7 +1799,6 @@ export default function MatchPage() {
   };
 
   const oppStarters = oppTeamData.order?.batting_order || oppTeamData.players.slice(0, 6).map((p) => p.id);
-
   const myTotal = displayState.myScore.reduce((a, b) => a + b, 0);
   const oppTotal = displayState.oppScore.reduce((a, b) => a + b, 0);
 
@@ -1899,6 +1892,9 @@ export default function MatchPage() {
     return `秋季公式リーグ 第${team.current_round}節 / 5イニング制`;
   };
 
+  // 主人公プレイヤー
+  const protagonist = team.players.find((p) => p.is_protagonist);
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 p-3 md:p-6 font-sans select-none relative overflow-hidden">
       <div className="max-w-7xl mx-auto space-y-4">
@@ -1915,7 +1911,6 @@ export default function MatchPage() {
               {getSeasonBadgeText()}
             </span>
 
-            {/* 音のオン／オフ切り替えボタン */}
             <SoundToggle />
 
             <button
@@ -2153,7 +2148,7 @@ export default function MatchPage() {
                   className="absolute inset-0 w-full h-full pointer-events-none"
                 />
 
-                {/* 野手アイコン（パーセンテージ指定でレスポンシブに完全追従） */}
+                {/* 野手アイコン（パーセンテージ指定） */}
                 {entities.fielders.map((f) => {
                   const isMyFielder = !displayState.isTop;
                   return (
@@ -2180,7 +2175,7 @@ export default function MatchPage() {
                   );
                 })}
 
-                {/* 打者アイコン（パーセンテージ指定でレスポンシブに完全追従） */}
+                {/* 打者アイコン（パーセンテージ指定） */}
                 {entities.batter.visible && (
                   <div
                     onClick={() => handleOpenPlayerCard(entities.batter.player)}
@@ -2210,7 +2205,7 @@ export default function MatchPage() {
                   </div>
                 )}
 
-                {/* 走者アイコン（パーセンテージ指定でレスポンシブに完全追従） */}
+                {/* 走者アイコン（パーセンテージ指定） */}
                 {entities.runners.map((r, idx) => {
                   const isMyTeamRunner = displayState.isTop;
                   return (
@@ -2491,23 +2486,23 @@ export default function MatchPage() {
       )}
 
       {/* 試合終了リザルトモーダル */}
-      {matchResult && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl border border-slate-200 text-center space-y-5">
+      {matchResult && !showGrandEnding && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300 select-none">
+          <div className="bg-white rounded-3xl p-5 md:p-7 max-w-lg w-full shadow-2xl border border-slate-200 text-center space-y-4 max-h-[90vh] overflow-y-auto">
             
             {matchResult.resultType === "WIN" && (
-              <div className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg bg-amber-50 border border-amber-200 text-amber-600">
-                <Trophy size={32} />
+              <div className="mx-auto w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg bg-amber-50 border border-amber-200 text-amber-600">
+                <Trophy size={28} />
               </div>
             )}
             {matchResult.resultType === "DRAW" && (
-              <div className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg bg-blue-50 border border-blue-200 text-blue-600">
-                <Scale size={32} />
+              <div className="mx-auto w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg bg-blue-50 border border-blue-200 text-blue-600">
+                <Scale size={28} />
               </div>
             )}
             {matchResult.resultType === "LOSE" && (
-              <div className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg bg-slate-100 border border-slate-300 text-slate-600">
-                <AlertCircle size={32} />
+              <div className="mx-auto w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg bg-slate-100 border border-slate-300 text-slate-600">
+                <AlertCircle size={28} />
               </div>
             )}
             
@@ -2522,7 +2517,7 @@ export default function MatchPage() {
                 {matchResult.isCold ? "COLD GAME (5点差コールド)" : "GAME SET (規定回数終了)"}
               </span>
 
-              <h2 className="text-2xl font-black text-slate-900 mt-1">
+              <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-0.5">
                 {matchResult.resultType === "WIN"
                   ? "青葉女子大学 勝利！"
                   : matchResult.resultType === "DRAW"
@@ -2532,18 +2527,19 @@ export default function MatchPage() {
               <p className="text-xs text-slate-700 font-bold">{matchResult.reason}</p>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex items-center justify-around">
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-2.5 flex items-center justify-around">
               <div>
-                <span className="text-xs text-slate-700 font-black block">青葉女子大</span>
+                <span className="text-[11px] text-slate-700 font-black block">青葉女子大</span>
                 <span className="text-2xl font-black text-amber-700 font-mono">{matchResult.finalMy}</span>
               </div>
-              <span className="text-xl font-black text-slate-400">-</span>
+              <span className="text-lg font-black text-slate-400">-</span>
               <div>
-                <span className="text-xs text-slate-700 font-black block">{oppTeamData.shortName}</span>
+                <span className="text-[11px] text-slate-700 font-black block">{oppTeamData.shortName}</span>
                 <span className="text-2xl font-black text-slate-900 font-mono">{matchResult.finalOpp}</span>
               </div>
             </div>
 
+            {/* 実戦経験による成長 */}
             {matchResult.grownPlayers.length > 0 && (
               <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 text-left space-y-1.5">
                 <div className="flex items-center gap-1.5 text-xs font-black text-emerald-900">
@@ -2563,15 +2559,49 @@ export default function MatchPage() {
               </div>
             )}
 
-            {matchResult.isSeasonEnd && (
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 text-left space-y-1 animate-in fade-in">
-                <div className="flex items-center gap-1.5 text-xs font-black text-blue-900">
-                  <GraduationCap size={15} className="text-blue-600" />
-                  シーズン終了・世代交代のお知らせ
+            {/* ★ 4年生の卒業進路報告会エリア */}
+            {matchResult.isSeasonEnd && matchResult.graduatedList && matchResult.graduatedList.length > 0 && (
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-3.5 text-left space-y-2.5 animate-in fade-in">
+                <div className="flex items-center justify-between border-b border-amber-200/80 pb-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-950">
+                    <GraduationCap size={16} className="text-amber-600" />
+                    第{team.current_year}期生 卒業式 ＆ 進路報告会（{matchResult.graduatedList.length}名）
+                  </div>
+                  <span className="text-[10px] text-amber-800 font-bold bg-white/80 px-2 py-0.5 rounded-full border border-amber-200">
+                    4年生引退
+                  </span>
                 </div>
-                <p className="text-[11px] text-blue-800 leading-relaxed font-medium">
-                  4年生（{matchResult.graduatedCount || 0}名）が晴れて卒業・引退しました。在校生は1学年進級し、春の入部ドラフト画面へ進みます！
-                </p>
+
+                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                  {matchResult.graduatedList.map((gp) => (
+                    <div key={gp.id} className="bg-white/90 rounded-xl p-2.5 border border-amber-200/70 shadow-sm space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-md bg-slate-900 text-white font-mono text-[9px] font-black flex items-center justify-center">
+                            {gp.main_position}
+                          </span>
+                          <span className="font-black text-xs text-slate-900">{gp.name}</span>
+                          {gp.is_protagonist && (
+                            <span className="bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.2 rounded">
+                              エース
+                            </span>
+                          )}
+                        </div>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full shadow-sm ${gp.career.badge}`}>
+                          {gp.career.title}
+                        </span>
+                      </div>
+                      
+                      <p className="text-[10px] text-slate-600 font-medium leading-relaxed pl-1">
+                        {gp.career.desc}
+                      </p>
+
+                      <div className="bg-amber-50/80 rounded-lg p-2 text-[10px] font-bold text-amber-950 border border-amber-200/50 leading-relaxed">
+                        「{gp.career.lastMessage}」
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -2582,7 +2612,10 @@ export default function MatchPage() {
 
             <button
               onClick={() => {
-                if (matchResult.isSeasonEnd) {
+                if (matchResult.isProtagonistGraduating) {
+                  // ★ 主人公卒業時は大団円エンディングへ！
+                  setShowGrandEnding(true);
+                } else if (matchResult.isSeasonEnd) {
                   router.push("/scout-spring");
                 } else {
                   handleReturnClubhouse();
@@ -2590,13 +2623,102 @@ export default function MatchPage() {
               }}
               className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-3.5 rounded-2xl shadow-lg transition active:scale-95 text-xs block text-center"
             >
-              {matchResult.isSeasonEnd
+              {matchResult.isProtagonistGraduating
+                ? "★ 主人公卒業セレモニー ＆ グランドエンディングへ"
+                : matchResult.isSeasonEnd
                 ? "シーズン表彰式 ＆ 新入生ドラフトへ"
                 : "クラブハウスへ帰還する（次戦へ）"}
             </button>
           </div>
         </div>
       )}
+
+      {/* ============================================================== */}
+      {/* ★ 主人公卒業グランドエンディング（大団円）モーダル */}
+      {/* ============================================================== */}
+      {showGrandEnding && protagonist && (
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-500">
+          <div className="max-w-xl w-full bg-slate-900 border-2 border-amber-400/80 rounded-3xl p-6 md:p-8 text-center space-y-6 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-500 text-white">
+            
+            {/* 背景デコレーション */}
+            <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500" />
+            <div className="absolute -top-12 -right-12 w-44 h-44 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+
+            <div className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-400/50 px-4 py-1 rounded-full text-xs font-black tracking-widest uppercase">
+              <Crown size={14} className="text-amber-400" /> GRAND ENDING - 栄光の4年間 -
+            </div>
+
+            {/* 主人公ビジュアル */}
+            <div className="flex flex-col items-center">
+              <div className="relative w-28 h-28 md:w-32 md:h-32 rounded-full overflow-hidden border-4 border-amber-400 shadow-2xl bg-slate-800 mb-3 ring-4 ring-amber-400/30">
+                <img
+                  src={getPlayerAvatarUrl(protagonist)}
+                  alt={protagonist.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <h2 className="text-2xl md:text-3xl font-black text-amber-400 drop-shadow">
+                {protagonist.name}
+              </h2>
+              <span className="text-xs text-slate-300 font-mono font-bold mt-1">
+                青葉女子大学野球部 第1期生〜第4期生 エース投手
+              </span>
+            </div>
+
+            {/* 進路決定バッジ */}
+            <div className="bg-gradient-to-r from-amber-500/20 via-amber-400/30 to-amber-500/20 border border-amber-400/60 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[11px] font-mono font-black text-amber-300 tracking-wider block">
+                【進路先決定】
+              </span>
+              <div className="text-lg md:text-xl font-black text-white">
+                女子プロ野球 ドラフト1位指名（国民的エース）
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                4年間マウンドを守り抜いた絶対的守護神として、日本最高峰のプロ野球界へ堂々羽ばたく！
+              </p>
+            </div>
+
+            {/* 主人公から監督への旅立ちの言葉 */}
+            <div className="bg-slate-950/70 border border-white/10 rounded-2xl p-4 md:p-5 text-left space-y-2 relative">
+              <Heart size={18} className="text-rose-500 absolute top-3 right-3 animate-pulse" />
+              <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block">
+                監督へ贈る言葉
+              </span>
+              <p className="text-xs md:text-sm font-black text-slate-200 leading-relaxed">
+                「監督、私をここまで信じて導いてくれて、本当にありがとうございました！ 
+                最初は不安だらけだった1年生の春から、全国制覇を勝ち取り、世界最強のチームと戦えた4年間…監督と過ごした日々は、私の人生のかけがえのない誇りです。
+                私が抜けても、青葉女子大の魂は後輩たちにしっかりと受け継がれています。次のプロの世界でも、青葉のエースとして全力で腕を振ってきます！」
+              </p>
+            </div>
+
+            {/* 選択肢ボタン */}
+            <div className="space-y-2.5 pt-2">
+              <button
+                onClick={() => {
+                  setShowGrandEnding(false);
+                  router.push("/scout-spring");
+                }}
+                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-2xl shadow-xl transition active:scale-95 text-xs md:text-sm flex items-center justify-center gap-2"
+              >
+                <span>名誉監督として続投（第5期生の春ドラフトへ）</span>
+                <ArrowRight size={16} />
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowGrandEnding(false);
+                  router.push("/title");
+                }}
+                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-2xl transition active:scale-95 text-xs block text-center border border-white/10"
+              >
+                大団円で終了（タイトル画面へ）
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
