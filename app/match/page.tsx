@@ -510,9 +510,7 @@ export default function MatchPage() {
         g.ball.curve = isBreaking ? (Math.random() > 0.5 ? 0.042 : -0.042) : 0;
         g.ball.active = true;
 
-        // ==========================================
-        // 盗塁判定（走力75以上＋性格に応じた確率）
-        // ==========================================
+        // 盗塁判定
         const r1 = g.runners.first;
         const r2 = g.runners.second;
         let stealAttempt: { runner: Player; from: "FIRST" | "SECOND"; to: "SECOND" | "THIRD" } | null = null;
@@ -2140,6 +2138,7 @@ export default function MatchPage() {
                 </div>
               </div>
 
+              {/* グラウンドコンテナ */}
               <div className="relative w-full max-w-[540px] aspect-[540/440] rounded-2xl overflow-hidden border border-slate-200 shadow-inner">
                 <canvas
                   ref={canvasRef}
@@ -2148,22 +2147,26 @@ export default function MatchPage() {
                   className="absolute inset-0 w-full h-full pointer-events-none"
                 />
 
-                {/* 野手アイコン */}
+                {/* 野手アイコン（パーセンテージ指定でレスポンシブに完全追従） */}
                 {entities.fielders.map((f) => {
                   const isMyFielder = !displayState.isTop;
                   return (
                     <div
                       key={f.pos}
                       onClick={() => handleOpenPlayerCard(f.player)}
-                      style={{ left: `${f.x}px`, top: `${f.y}px`, transform: "translate(-50%, -50%)" }}
+                      style={{
+                        left: `${(f.x / 540) * 100}%`,
+                        top: `${(f.y / 440) * 100}%`,
+                        transform: "translate(-50%, -50%)",
+                      }}
                       className="absolute z-10 transition-transform duration-75 flex flex-col items-center cursor-pointer hover:scale-110 active:scale-95"
                       title={`${f.player?.name || f.pos}（クリックで選手詳細＆停止）`}
                     >
-                      <div className={`relative w-16 h-16 rounded-full overflow-hidden bg-slate-800 shadow-xl ${
-                        isMyFielder ? "border-[3.5px] border-white ring-1 ring-slate-400/50" : "border-[3.5px] border-slate-950 ring-1 ring-white/30"
+                      <div className={`relative w-11 h-11 sm:w-13 sm:h-13 md:w-16 md:h-16 rounded-full overflow-hidden bg-slate-800 shadow-xl ${
+                        isMyFielder ? "border-[2.5px] sm:border-[3.5px] border-white ring-1 ring-slate-400/50" : "border-[2.5px] sm:border-[3.5px] border-slate-950 ring-1 ring-white/30"
                       }`}>
                         <img src={getPlayerAvatarUrl(f.player)} alt={f.pos} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/901.jpg"; }} />
-                        <span className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-white border border-slate-400 shadow text-[10px] font-black text-slate-900 flex items-center justify-center">
+                        <span className="absolute bottom-0 right-0 w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 rounded-full bg-white border border-slate-400 shadow text-[8px] sm:text-[9px] md:text-[10px] font-black text-slate-900 flex items-center justify-center">
                           {f.pos}
                         </span>
                       </div>
@@ -2171,11 +2174,15 @@ export default function MatchPage() {
                   );
                 })}
 
-                {/* 打者アイコン */}
+                {/* 打者アイコン（パーセンテージ指定でレスポンシブに完全追従） */}
                 {entities.batter.visible && (
                   <div
                     onClick={() => handleOpenPlayerCard(entities.batter.player)}
-                    style={{ left: `${entities.batter.x}px`, top: `${entities.batter.y}px`, transform: "translate(-50%, -50%)" }}
+                    style={{
+                      left: `${(entities.batter.x / 540) * 100}%`,
+                      top: `${(entities.batter.y / 440) * 100}%`,
+                      transform: "translate(-50%, -50%)",
+                    }}
                     className="absolute z-10 transition-transform duration-75 flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95"
                     title={`${entities.batter.player?.name || "打者"}（クリックで選手詳細＆停止）`}
                   >
@@ -2184,35 +2191,39 @@ export default function MatchPage() {
                         transform: `rotate(${entities.batter.batAngle}rad)`,
                         transformOrigin: entities.batter.isLeft ? "right center" : "left center",
                       }}
-                      className={`absolute ${entities.batter.isLeft ? "right-7" : "left-7"} w-8 h-1.5 bg-amber-600 rounded-r border border-amber-900 z-0`}
+                      className={`absolute ${entities.batter.isLeft ? "right-5 sm:right-7" : "left-5 sm:left-7"} w-6 sm:w-8 h-1 sm:h-1.5 bg-amber-600 rounded-r border border-amber-900 z-0`}
                     />
-                    <div className={`relative w-16 h-16 rounded-full overflow-hidden bg-slate-800 shadow-xl z-10 ${
-                      displayState.isTop ? "border-[3.5px] border-white ring-2 ring-amber-400/80" : "border-[3.5px] border-slate-950 ring-2 ring-rose-500/80"
+                    <div className={`relative w-11 h-11 sm:w-13 sm:h-13 md:w-16 md:h-16 rounded-full overflow-hidden bg-slate-800 shadow-xl z-10 ${
+                      displayState.isTop ? "border-[2.5px] sm:border-[3.5px] border-white ring-2 ring-amber-400/80" : "border-[2.5px] sm:border-[3.5px] border-slate-950 ring-2 ring-rose-500/80"
                     }`}>
                       <img src={getPlayerAvatarUrl(entities.batter.player)} alt="Batter" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/901.jpg"; }} />
-                      <span className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-white border border-slate-400 shadow text-[11px] font-black text-slate-900 flex items-center justify-center">
+                      <span className="absolute bottom-0 right-0 w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 rounded-full bg-white border border-slate-400 shadow text-[9px] sm:text-[10px] md:text-[11px] font-black text-slate-900 flex items-center justify-center">
                         打
                       </span>
                     </div>
                   </div>
                 )}
 
-                {/* 走者アイコン */}
+                {/* 走者アイコン（パーセンテージ指定でレスポンシブに完全追従） */}
                 {entities.runners.map((r, idx) => {
                   const isMyTeamRunner = displayState.isTop;
                   return (
                     <div
                       key={idx}
                       onClick={() => handleOpenPlayerCard(r.player)}
-                      style={{ left: `${r.x}px`, top: `${r.y}px`, transform: "translate(-50%, -50%)" }}
+                      style={{
+                        left: `${(r.x / 540) * 100}%`,
+                        top: `${(r.y / 440) * 100}%`,
+                        transform: "translate(-50%, -50%)",
+                      }}
                       className="absolute z-10 transition-transform duration-75 flex flex-col items-center cursor-pointer hover:scale-110 active:scale-95"
                       title={`${r.player.name}（クリックで選手詳細＆停止）`}
                     >
-                      <div className={`relative w-16 h-16 rounded-full overflow-hidden bg-slate-800 shadow-xl animate-pulse ${
-                        isMyTeamRunner ? "border-[3.5px] border-white ring-2 ring-blue-500" : "border-[3.5px] border-slate-950 ring-2 ring-rose-500"
+                      <div className={`relative w-11 h-11 sm:w-13 sm:h-13 md:w-16 md:h-16 rounded-full overflow-hidden bg-slate-800 shadow-xl animate-pulse ${
+                        isMyTeamRunner ? "border-[2.5px] sm:border-[3.5px] border-white ring-2 ring-blue-500" : "border-[2.5px] sm:border-[3.5px] border-slate-950 ring-2 ring-rose-500"
                       }`}>
                         <img src={getPlayerAvatarUrl(r.player)} alt={r.player.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/901.jpg"; }} />
-                        <span className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-white border border-slate-400 shadow text-[11px] font-black text-slate-900 flex items-center justify-center">
+                        <span className="absolute bottom-0 right-0 w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 rounded-full bg-white border border-slate-400 shadow text-[9px] sm:text-[10px] md:text-[11px] font-black text-slate-900 flex items-center justify-center">
                           走
                         </span>
                       </div>
@@ -2221,7 +2232,7 @@ export default function MatchPage() {
                 })}
 
                 {homeInEffect && (
-                  <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-amber-500 text-white font-black text-sm px-5 py-2 rounded-full shadow-lg border-2 border-white animate-bounce pointer-events-none z-20">
+                  <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-amber-500 text-white font-black text-xs sm:text-sm px-4 sm:px-5 py-1.5 sm:py-2 rounded-full shadow-lg border-2 border-white animate-bounce pointer-events-none z-20">
                     ⚡ ホームイン！ ＋1点獲得！
                   </div>
                 )}
@@ -2229,7 +2240,7 @@ export default function MatchPage() {
                 {banner && (
                   <div
                     style={{ backgroundColor: banner.color }}
-                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white font-black text-xl px-7 py-3 rounded-2xl shadow-2xl animate-bounce border-2 border-white pointer-events-none z-20"
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white font-black text-base sm:text-xl px-5 sm:px-7 py-2 sm:py-3 rounded-2xl shadow-2xl animate-bounce border-2 border-white pointer-events-none z-20 whitespace-nowrap"
                   >
                     {banner.text}
                   </div>
