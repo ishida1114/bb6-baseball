@@ -3,11 +3,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Player, UserTeam } from "@/types/baseball";
-import { generateDraftCandidates } from "@/lib/draft";
-import { LEAGUE_TEAMS } from "@/lib/league";
+import { Player, UserTeam, LeagueTeam } from "@/types/baseball";
+import { generateDraftCandidates, generateTeamOrder, advanceOpponentsSeason } from "@/lib/draft";
 import PlayerCardModal from "@/components/PlayerCardModal";
-import { UserPlus, Sparkles, Check, ChevronRight, Award, Info } from "lucide-react";
+import { UserPlus, Check, Info } from "lucide-react";
 
 export default function ScoutSpringPage() {
   const router = useRouter();
@@ -16,8 +15,8 @@ export default function ScoutSpringPage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [quota, setQuota] = useState<number>(2);
   const [viewPlayer, setViewPlayer] = useState<Player | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
- // app/scout-spring/page.tsx の 18行目付近〜
   useEffect(() => {
     const init = async () => {
       const saved = localStorage.getItem("bb6_myTeam");
@@ -32,11 +31,17 @@ export default function ScoutSpringPage() {
       const needed = Math.max(1, 10 - parsed.players.length);
       setQuota(needed);
 
-      // 他校所属選手のIDリストを収集
-      const oppIds = new Set<number>();
-      LEAGUE_TEAMS.forEach((t) => t.players?.forEach((p) => oppIds.add(p.id)));
+      // ★ localStorage に保存された実際のライバル7校所属選手IDを収集
+      let oppList: LeagueTeam[] = [];
+      const savedOppStr = localStorage.getItem("bb6_league_opponents");
+      if (savedOppStr) {
+        try { oppList = JSON.parse(savedOppStr); } catch {}
+      }
 
-      // ★ await を追加して候補者配列を待機取得
+      const oppIds = new Set<number>();
+      oppList.forEach((t) => t.players?.forEach((p) => oppIds.add(p.id)));
+
+      // 他校に在籍している選手を除外してドラフト候補を取得
       const draftList = await generateDraftCandidates(parsed, oppIds);
       setCandidates(draftList);
     };
@@ -54,35 +59,37 @@ export default function ScoutSpringPage() {
     }
   };
 
-  const handleConfirmDraft = () => {
-    if (!team || selectedIds.length !== quota) return;
+  const handleConfirmDraft = async () => {
+    if (!team || selectedIds.length !== quota || isSubmitting) return;
+    setIsSubmitting(true);
 
-    const chosenPlayers = candidates.filter((c) => selectedIds.includes(c.id));
-    const nextPlayers = [...team.players, ...chosenPlayers];
+    try {
+      const chosenPlayers = candidates
+        .filter((c) => selectedIds.includes(c.id))
+        .map((p) => ({ ...p, grade: 1 })); // 新入生は確実に1年生
 
-    // 打順・守備の空き枠に新人たちを補完
-    const nextOrder = { ...team.order };
-    const missingSlotIndices: number[] = [];
-    nextOrder.batting_order.forEach((pid, idx) => {
-      if (!nextPlayers.some((p) => p.id === pid)) missingSlotIndices.push(idx);
-    });
+      const nextPlayers = [...team.players, ...chosenPlayers];
 
-    chosenPlayers.forEach((cp, i) => {
-      if (i < missingSlotIndices.length) {
-        nextOrder.batting_order[missingSlotIndices[i]] = cp.id;
-      } else {
-        if (!nextOrder.bench_ids.includes(cp.id)) nextOrder.bench_ids.push(cp.id);
-      }
-    });
+      // ★ 新入生を含めた10名全員でオーダー・守備位置・ベンチを安全に完全再構築！
+      const nextOrder = generateTeamOrder(nextPlayers);
 
-    const updatedTeam: UserTeam = {
-      ...team,
-      players: nextPlayers,
-      order: nextOrder,
-    };
+      const updatedTeam: UserTeam = {
+        ...team,
+        players: nextPlayers,
+        order: nextOrder,
+      };
 
-    localStorage.setItem("bb6_myTeam", JSON.stringify(updatedTeam));
-    router.push("/");
+      // 自チームを保存
+      localStorage.setItem("bb6_myTeam", JSON.stringify(updatedTeam));
+
+      // ★ ライバル7校も同時に4年生引退・進級・新入生補充を行い、新シーズンへ完全同期！
+      await advanceOpponentsSeason(updatedTeam);
+
+      router.push("/");
+    } catch (e) {
+      console.error("ドラフト確定エラー:", e);
+      setIsSubmitting(false);
+    }
   };
 
   if (!team) return null;
@@ -104,16 +111,16 @@ export default function ScoutSpringPage() {
               <UserPlus className="text-amber-400" /> 新入部員スカウト（指名枠: {quota}名）
             </h1>
             <p className="text-xs text-slate-400 mt-1">
-              全国・アジアから集まった逸材から、チームの弱点を補う【{quota}名】を指名してください。
+              全国から集まった逸材から、チームの弱点を補う【{quota}名】を指名してください。
             </p>
           </div>
 
           <button
             onClick={handleConfirmDraft}
-            disabled={selectedIds.length !== quota}
+            disabled={selectedIds.length !== quota || isSubmitting}
             className="bg-amber-500 hover:bg-amber-400 disabled:opacity-30 text-slate-950 font-black px-6 py-3 rounded-2xl shadow-lg transition active:scale-95 flex items-center gap-2 text-sm"
           >
-            <Check size={18} /> 指名を確定して新シーズンへ（{selectedIds.length}/{quota}）
+            <Check size={18} /> {isSubmitting ? "更新中..." : `指名を確定して新シーズンへ（${selectedIds.length}/${quota}）`}
           </button>
         </div>
 

@@ -242,7 +242,6 @@ export function assignNextProtagonist(
 ): { updatedTeam: UserTeam; newProtagonist: Player; newGeneration: number } {
   let newProtagonist: Player | null = null;
 
-  // 現在の代数を取得（未設定なら初代の1）➔ カウントアップ
   const currentGen = (team as any).ace_generation || 1;
   const newGeneration = currentGen + 1;
 
@@ -272,6 +271,102 @@ export function assignNextProtagonist(
   }
 
   return { updatedTeam, newProtagonist, newGeneration };
+}
+
+/**
+ * ★【ライバル7校のオフシーズン世代交代処理】
+ * 4年生を引退させ、在校生を学年+1し、新入生(grade: 1)を10名まで自動補充してオーダー再構築
+ */
+export async function advanceOpponentsSeason(currentMyTeam: UserTeam): Promise<LeagueTeam[]> {
+  const { data: allPoolPlayers } = await supabase
+    .from("bb6_players")
+    .select("*")
+    .order("id", { ascending: true });
+
+  const eligiblePool = ((allPoolPlayers || []) as Player[]).filter((p) => !EXCLUDED_DRAFT_IDS.has(p.id));
+  const shuffle = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
+
+  let currentOppTeams: LeagueTeam[] = [];
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem("bb6_league_opponents");
+    if (saved) {
+      try { currentOppTeams = JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+  }
+
+  if (currentOppTeams.length === 0) {
+    currentOppTeams = OPPONENT_UNIVERSITIES.map((uni) => ({
+      ...uni,
+      players: [],
+      order: {} as TeamOrder,
+    }));
+  }
+
+  // 1. 各大学の4年生を引退させ、1〜3年生を進級 (grade + 1)
+  const retainedOppTeams = currentOppTeams.map((team) => {
+    const active = (team.players || [])
+      .filter((p) => (p.grade ?? 1) < 4)
+      .map((p) => ({ ...p, grade: (p.grade ?? 1) + 1 }));
+    return { ...team, players: active };
+  });
+
+  // 在籍中IDの収集（青葉の10名 ＋ ライバル各校の在校生）
+  const occupiedIds = new Set<number>(currentMyTeam.players.map((p) => p.id));
+  retainedOppTeams.forEach((t) => t.players.forEach((p) => occupiedIds.add(p.id)));
+
+  const freeRookiePool = shuffle(
+    eligiblePool.filter((p) => !occupiedIds.has(p.id))
+  );
+
+  const uniqueRookies = freeRookiePool.filter((p) => hasUniqueImage(p));
+  const genericRookies = freeRookiePool.filter((p) => !hasUniqueImage(p));
+
+  // 2. 各大学10名になるまで新入生 (grade: 1) を補充
+  retainedOppTeams.forEach((team) => {
+    let currUniques = team.players.filter(hasUniqueImage).length;
+    
+    // 固有顔選手が少なければ優先補充
+    while (team.players.length < 10 && currUniques < 2 && uniqueRookies.length > 0) {
+      const rookie = uniqueRookies.pop()!;
+      team.players.push({ ...rookie, grade: 1 });
+      occupiedIds.add(rookie.id);
+      currUniques++;
+    }
+
+    // 汎用ルーキー補充
+    while (team.players.length < 10 && genericRookies.length > 0) {
+      const rookie = genericRookies.pop()!;
+      team.players.push({ ...rookie, grade: 1 });
+      occupiedIds.add(rookie.id);
+    }
+
+    while (team.players.length < 10 && uniqueRookies.length > 0) {
+      const rookie = uniqueRookies.pop()!;
+      team.players.push({ ...rookie, grade: 1 });
+      occupiedIds.add(rookie.id);
+    }
+
+    // 投手（P）保証
+    const hasP = team.players.some((p) => p.main_position === "P");
+    if (!hasP) {
+      const pCand = freeRookiePool.find(
+        (p) => p.main_position === "P" && !occupiedIds.has(p.id)
+      );
+      if (pCand) {
+        team.players[team.players.length - 1] = { ...pCand, grade: 1 };
+        occupiedIds.add(pCand.id);
+      }
+    }
+
+    // 新オーダー再構築
+    team.order = generateTeamOrder(team.players);
+  });
+
+  if (typeof window !== "undefined") {
+    localStorage.setItem("bb6_league_opponents", JSON.stringify(retainedOppTeams));
+  }
+
+  return retainedOppTeams;
 }
 
 export async function generateDraftCandidates(

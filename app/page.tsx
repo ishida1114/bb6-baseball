@@ -90,13 +90,19 @@ export default function ClubhousePage() {
     }
     try {
       const parsed: UserTeam = JSON.parse(saved);
+      
+      // ★ 人数不足ガード：10名未満（4年生引退直後）なら新歓スカウトへ強制誘導
+      if (parsed.players && parsed.players.length < 10) {
+        router.replace("/scout-spring");
+        return;
+      }
+
       if (!parsed.current_season) parsed.current_season = "SPRING";
       setTeam(parsed);
 
       const lData = loadLeagueData(parsed.team_name);
       setLeague(lData);
 
-      // 主人公の特定
       const activeProto = parsed.players.find((p) => p.is_protagonist);
       if (activeProto) {
         setProtagonist(activeProto);
@@ -150,7 +156,6 @@ export default function ClubhousePage() {
 
   const oppFeature = opponent?.feature || opponent?.desc || "大学女子野球屈指の実力校";
 
-  // ★ エース代数の動的判定
   const aceGen = (team as any).ace_generation || 1;
   const isSecondGenOrLater = aceGen >= 2;
 
@@ -424,7 +429,6 @@ export default function ClubhousePage() {
                     className="w-full h-full object-cover object-top rounded-t-3xl drop-shadow-[0_15px_15px_rgba(0,0,0,0.6)] border-t-2 border-x-2 border-white/60"
                   />
                   <div className="absolute bottom-2 inset-x-2 bg-slate-900/90 backdrop-blur-sm text-white py-1 px-2 rounded-xl text-center shadow border border-white/20">
-                    {/* ★ 代数を動的表示 */}
                     <span className="text-[10px] font-black text-amber-400 block">
                       {isSecondGenOrLater ? `${aceGen}代目エース（主役）` : "新入生エース（あなた）"}
                     </span>
