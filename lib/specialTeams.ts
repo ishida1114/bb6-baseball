@@ -1,7 +1,7 @@
 // lib/specialTeams.ts
 import { Player, LeagueTeam, UserTeam, TeamOrder, PositionType } from "@/types/baseball";
 import { OPPONENT_UNIVERSITIES } from "@/lib/league";
-import { ASIA_PLAYERS, generateTeamOrder } from "@/lib/draft";
+import { ASIA_PLAYERS, generateTeamOrder, hasUniqueImage } from "@/lib/draft";
 
 // ==========================================
 // 1. 文化部助っ人選手マスター（10名）
@@ -182,10 +182,6 @@ export function splitAobaMembers(userTeam: UserTeam) {
 // ==========================================
 // 2. 春 第1戦：学内紅白戦 A
 // ==========================================
-/**
- * 第1戦 敵軍（青葉・白組A）
- * 仲間B(5名) ＋ 助っ人後半5名 ＝ 計10名（スタメン6名 / ベンチ4名）
- */
 export function getScrimmageTeamA(userTeam: UserTeam): LeagueTeam {
   const { groupB } = splitAobaMembers(userTeam);
   const oppRoster: Player[] = [...groupB, ...HELPERS_SECOND_HALF];
@@ -206,10 +202,6 @@ export function getScrimmageTeamA(userTeam: UserTeam): LeagueTeam {
   };
 }
 
-/**
- * 第1戦 自軍操作ロスター（青葉・紅組A）
- * 主人公(1名) ＋ 仲間A(4名) ＋ 助っ人前半5名 ＝ 計10名（部員5名スタメン＋助っ人1名／ベンチ助っ人4名）
- */
 export function getScrimmageUserTeamA(userTeam: UserTeam): { players: Player[]; order: TeamOrder } {
   const { proto, groupA } = splitAobaMembers(userTeam);
   const roster: Player[] = [proto, ...groupA, ...HELPERS_FIRST_HALF];
@@ -220,13 +212,8 @@ export function getScrimmageUserTeamA(userTeam: UserTeam): { players: Player[]; 
 // ==========================================
 // 3. 春 第2戦：学内紅白戦 B（敵味方シャッフル）
 // ==========================================
-/**
- * 第2戦 敵軍（青葉・白組B）
- * 仲間A(4名) ＋ 助っ人6名 ＝ 計10名（部員4名スタメン＋助っ人2名／ベンチ助っ人4名）
- */
 export function getScrimmageTeamB(userTeam: UserTeam): LeagueTeam {
   const { groupA } = splitAobaMembers(userTeam);
-  // 助っ人6名（805〜810）
   const oppHelpers = [CULTURE_CLUB_PLAYERS.ASTRONOMY, ...HELPERS_SECOND_HALF];
   const oppRoster: Player[] = [...groupA, ...oppHelpers];
   const order = generateTeamOrder(oppRoster);
@@ -246,10 +233,6 @@ export function getScrimmageTeamB(userTeam: UserTeam): LeagueTeam {
   };
 }
 
-/**
- * 第2戦 自軍操作ロスター（青葉・紅組B）
- * 主人公(1名) ＋ 仲間B(5名) ＋ 助っ人4名 ＝ 計10名（部員6名全員スタメン／ベンチ助っ人4名）
- */
 export function getScrimmageUserTeamB(userTeam: UserTeam): { players: Player[]; order: TeamOrder } {
   const { proto, groupB } = splitAobaMembers(userTeam);
   const helpers4 = HELPERS_FIRST_HALF.slice(0, 4);
@@ -376,20 +359,107 @@ export function getCorporateAllStars(): LeagueTeam {
 
 // ==========================================
 // 5. 春 第4戦：六大学カレッジ・オールスターズ
+//    ★ ライバル7校から看板選手を集め「10名全員が固有顔写真付き」のドリームチームを編成
 // ==========================================
-export function getCollegeAllStars(savedOpponents?: LeagueTeam[]): LeagueTeam {
-  const baseTeams = savedOpponents && savedOpponents.length > 0 ? savedOpponents : OPPONENT_UNIVERSITIES;
-  const allStarPlayers: Player[] = [];
+// 実在する画像アセット（/246.jpg〜/255.jpg）を使用した確実なセーフティネット用スター選手10名
+const STATIC_ALL_STAR_HEROINES: Player[] = [
+  { id: 9201, name: "橘 炎華 (紅蓮体育大)", main_position: "P", image_url: "/246.jpg", pitch_speed: 84, control: 82, contact: 74, power: 80, speed: 72, fielding: 78, arm: 82, grade: 3, batting_hand: "R", personality: "熱血", nickname: "紅蓮の剛腕" },
+  { id: 9202, name: "白銀 怜奈 (白百合女子大)", main_position: "P", image_url: "/247.jpg", pitch_speed: 80, control: 88, contact: 76, power: 68, speed: 70, fielding: 84, arm: 80, grade: 3, batting_hand: "L", personality: "クール", nickname: "白百合の至宝" },
+  { id: 9203, name: "一条 麗香 (桜華学院大)", main_position: "C", image_url: "/248.jpg", pitch_speed: 60, control: 55, contact: 86, power: 84, speed: 68, fielding: 88, arm: 86, grade: 4, batting_hand: "R", personality: "頭脳派", nickname: "桜華の頭脳司令塔" },
+  { id: 9204, name: "天野 緋奈 (紅蓮体育大)", main_position: "1B", image_url: "/249.jpg", pitch_speed: 55, control: 50, contact: 82, power: 92, speed: 65, fielding: 76, arm: 80, grade: 4, batting_hand: "L", personality: "熱血", nickname: "熱血スラッガー" },
+  { id: 9205, name: "大黒 摩耶 (黒潮海洋大)", main_position: "SS", image_url: "/250.jpg", pitch_speed: 60, control: 55, contact: 84, power: 78, speed: 90, fielding: 88, arm: 84, grade: 3, batting_hand: "R", personality: "お調子者", nickname: "黒潮の韋駄天" },
+  { id: 9206, name: "高千穂 響 (帝都経済大)", main_position: "3B", image_url: "/251.jpg", pitch_speed: 60, control: 55, contact: 80, power: 85, speed: 70, fielding: 82, arm: 85, grade: 4, batting_hand: "R", personality: "努力家", nickname: "鉄壁のホットコーナー" },
+  { id: 9207, name: "不動 巌 (富士見女子大)", main_position: "2B", image_url: "/252.jpg", pitch_speed: 55, control: 55, contact: 78, power: 72, speed: 82, fielding: 90, arm: 80, grade: 3, batting_hand: "R", personality: "努力家", nickname: "富士見の盾" },
+  { id: 9208, name: "如月 雅 (武蔵野音大)", main_position: "P", image_url: "/253.jpg", pitch_speed: 78, control: 84, contact: 70, power: 65, speed: 72, fielding: 80, arm: 78, grade: 2, batting_hand: "L", personality: "頭脳派", nickname: "魔球のサウスポー" },
+  { id: 9209, name: "鳴神 鈴 (黒潮海洋大)", main_position: "SS", image_url: "/254.jpg", pitch_speed: 55, control: 50, contact: 82, power: 74, speed: 92, fielding: 86, arm: 80, grade: 2, batting_hand: "L", personality: "お調子者", nickname: "スピードスター" },
+  { id: 9210, name: "風間 凛花 (桜華学院大)", main_position: "C", image_url: "/255.jpg", pitch_speed: 55, control: 50, contact: 76, power: 78, speed: 70, fielding: 84, arm: 88, grade: 3, batting_hand: "R", personality: "クール", nickname: "鉄壁のストッパー" },
+];
 
-  baseTeams.forEach((t) => {
-    const star = t.players?.find((p) => p.main_position === "P") || t.players?.[0];
-    if (star) allStarPlayers.push(star);
-    const cleanup = t.players?.find((p) => (p.power ?? 0) >= 80 && p.id !== star?.id);
-    if (cleanup && allStarPlayers.length < 10) allStarPlayers.push(cleanup);
+export function getCollegeAllStars(savedOpponents?: LeagueTeam[]): LeagueTeam {
+  let baseTeams = savedOpponents && savedOpponents.length > 0 ? savedOpponents : [];
+
+  if (baseTeams.length === 0 && typeof window !== "undefined") {
+    const saved = localStorage.getItem("bb6_league_opponents");
+    if (saved) {
+      try {
+        baseTeams = JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
+  if (baseTeams.length === 0) {
+    baseTeams = OPPONENT_UNIVERSITIES;
+  }
+
+  // ★ 7大学から固定画像選手を均等に招集
+  const allStarRoster: Player[] = [];
+  const seenIds = new Set<number>();
+
+  // 1巡目：各大学の看板スター選手（最も能力の高い固定画像選手）を1名ずつ招集
+  baseTeams.forEach((team) => {
+    const uniques = (team.players || []).filter((p) => hasUniqueImage(p));
+    uniques.sort((a, b) => {
+      const scoreA = (a.contact || 60) + (a.power || 60) + (a.pitch_speed || 60) + (a.control || 60);
+      const scoreB = (b.contact || 60) + (b.power || 60) + (b.pitch_speed || 60) + (b.control || 60);
+      return scoreB - scoreA;
+    });
+
+    for (const u of uniques) {
+      if (!seenIds.has(u.id)) {
+        seenIds.add(u.id);
+        allStarRoster.push(u);
+        break;
+      }
+    }
   });
 
-  const selected = allStarPlayers.slice(0, 8);
-  const order = generateTeamOrder(selected);
+  // 2巡目：10名になるまで、各大学の2番手スターを招集
+  baseTeams.forEach((team) => {
+    if (allStarRoster.length >= 10) return;
+    const uniques = (team.players || []).filter((p) => hasUniqueImage(p));
+    uniques.sort((a, b) => {
+      const scoreA = (a.contact || 60) + (a.power || 60) + (a.pitch_speed || 60) + (a.control || 60);
+      const scoreB = (b.contact || 60) + (b.power || 60) + (b.pitch_speed || 60) + (b.control || 60);
+      return scoreB - scoreA;
+    });
+
+    for (const u of uniques) {
+      if (!seenIds.has(u.id)) {
+        seenIds.add(u.id);
+        allStarRoster.push(u);
+        break;
+      }
+    }
+  });
+
+  // 投手(P)と捕手(C)のポジション保証チェック
+  const hasPitcher = allStarRoster.some((p) => p.main_position === "P");
+  if (!hasPitcher) {
+    let bestP: Player | null = null;
+    for (const team of baseTeams) {
+      const p = (team.players || []).find((pl) => pl.main_position === "P" && hasUniqueImage(pl));
+      if (p) { bestP = p; break; }
+    }
+    if (bestP && !seenIds.has(bestP.id)) {
+      if (allStarRoster.length >= 10) allStarRoster.pop();
+      allStarRoster.unshift(bestP);
+      seenIds.add(bestP.id);
+    }
+  }
+
+  // 万が一、セーブデータ内の固有選手が10名未満の場合のセーフティネット（実在画像を使用）
+  if (allStarRoster.length < 10) {
+    STATIC_ALL_STAR_HEROINES.forEach((heroine) => {
+      if (allStarRoster.length < 10 && !seenIds.has(heroine.id)) {
+        seenIds.add(heroine.id);
+        allStarRoster.push(heroine);
+      }
+    });
+  }
+
+  const order = generateTeamOrder(allStarRoster);
 
   return {
     id: 884,
@@ -398,10 +468,10 @@ export function getCollegeAllStars(savedOpponents?: LeagueTeam[]): LeagueTeam {
     initial: "星",
     color: "#7c3aed",
     badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
-    desc: "ライバル7校の看板選手が集結！ 大学女子野球選抜ドリームチーム",
-    feature: "紅蓮の剛腕、白百合の鉄壁守備、黒潮の韋駄天が一つになった最強軍団！",
-    strength: { pitch: 86, contact: 84, power: 88, speed: 82, defense: 86 },
-    players: selected,
+    desc: "ライバル7校の看板ヒロインが集結！ 全員顔写真付きのドリームチーム",
+    feature: "紅蓮の剛腕、白百合の至宝、桜華の主砲が一つになった大学女子野球の頂点軍団！",
+    strength: { pitch: 88, contact: 86, power: 88, speed: 84, defense: 88 },
+    players: allStarRoster,
     order,
   };
 }
