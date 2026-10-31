@@ -27,17 +27,21 @@ export default function TitlePage() {
     }
   }, []);
 
-  // はじめから
+  // はじめから（全ゲームデータを完全リセット）
   const handleNewGame = async () => {
-    if (savedTeam && !confirm("既存のセーブデータを削除し、新入生エースの作成から新しく開始しますか？")) {
+    if (savedTeam && !confirm("既存のセーブデータを削除し、設備投資やチーム状態をすべて初期化して新しく開始しますか？")) {
       return;
     }
     setLoading(true);
     try {
-      localStorage.removeItem("bb6_myTeam");
-      localStorage.removeItem("bb6_league");
-      localStorage.removeItem("bb6_league_opponents");
-      localStorage.removeItem("bb6_custom_protagonist");
+      if (typeof window !== "undefined") {
+        // サウンド設定（bb6_sound_muted）以外の全ゲームセーブデータを完全削除
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith("bb6_") && key !== "bb6_sound_muted") {
+            localStorage.removeItem(key);
+          }
+        });
+      }
 
       router.push("/character-create");
     } catch (e) {
@@ -131,7 +135,7 @@ export default function TitlePage() {
 
         {loading && (
           <div className="text-[11px] font-mono font-black text-amber-300 animate-pulse bg-slate-900/90 px-3.5 py-1 rounded-full border border-amber-400/50 shadow-lg text-center">
-            入学手続き中... キャラ作成画面へ進みます
+            初期化中... キャラ作成画面へ進みます
           </div>
         )}
 
