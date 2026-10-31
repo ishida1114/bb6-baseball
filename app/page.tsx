@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserTeam, Player, PositionType, LeagueData, SeasonPhase, LeagueTeam } from "@/types/baseball";
-import { getCurrentOpponent, loadLeagueData, OPPONENT_UNIVERSITIES } from "@/lib/league";
+import { loadLeagueData, OPPONENT_UNIVERSITIES } from "@/lib/league";
 import { getScrimmageTeamA, getScrimmageTeamB, getCorporateAllStars, getCollegeAllStars, getAsiaAllStars, getUsaAllStars } from "@/lib/specialTeams";
 import PlayerCardModal from "@/components/PlayerCardModal";
 import SoundToggle from "@/components/SoundToggle";
@@ -54,7 +54,15 @@ function getSeasonOpponent(team: UserTeam): LeagueTeam {
   if (season === "AUTUMN" && (rnd === 8 || team.has_won_autumn)) {
     return getUsaAllStars();
   }
-  return getCurrentOpponent(rnd);
+  
+  let oppList = OPPONENT_UNIVERSITIES;
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem("bb6_league_opponents");
+    if (saved) {
+      try { oppList = JSON.parse(saved); } catch {}
+    }
+  }
+  return oppList[rnd - 1] || oppList[0];
 }
 
 export default function ClubhousePage() {
@@ -73,7 +81,6 @@ export default function ClubhousePage() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   useEffect(() => {
-    // クラブハウスBGM再生
     playBgm("clubhouse");
 
     const saved = localStorage.getItem("bb6_myTeam");
@@ -89,7 +96,7 @@ export default function ClubhousePage() {
       const lData = loadLeagueData(parsed.team_name);
       setLeague(lData);
 
-      // ★ 2代目エース（新主人公）を確実に部室センターへ配属
+      // 主人公の特定
       const activeProto = parsed.players.find((p) => p.is_protagonist);
       if (activeProto) {
         setProtagonist(activeProto);
@@ -143,13 +150,16 @@ export default function ClubhousePage() {
 
   const oppFeature = opponent?.feature || opponent?.desc || "大学女子野球屈指の実力校";
 
+  // ★ エース代数の動的判定
+  const aceGen = (team as any).ace_generation || 1;
+  const isSecondGenOrLater = aceGen >= 2;
+
   const getSeasonDialogue = () => {
     if (season === "SPRING") {
-      const isSecondGen = team.current_year >= 5;
       return [
         "まず初めに、「オーダー変更」で戦力を確認、次に「全体練習・特訓合宿」で練習、それから「試合を開始する（プレイボール）」へ進んでください！",
-        isSecondGen
-          ? "先輩たちからマウンドを受け継ぎました！ 2代目エースとして、今年も青葉旋風を巻き起こしてみせます！"
+        isSecondGenOrLater
+          ? `先輩たちから伝統のマウンドを受け継ぎました！ ${aceGen}代目エースとして、今年も青葉旋風を巻き起こしてみせます！`
           : `現在は春のプレシーズン！ 第${team.current_round}戦は【${opponent.name}】との一戦です！ 新入生の適性をしっかり試しましょう！`,
         "紅白戦は青葉部員をシャッフルした真剣勝負！ 敵味方両面から仲間の実力を肌で体感できますよ！",
         "第3戦の実業団チームに勝利すると、企業から特別スポンサー料（多額の部費）が支給されますよ！",
@@ -364,7 +374,6 @@ export default function ClubhousePage() {
               </span>
             </div>
 
-            {/* 音のオン／オフ切り替えボタン */}
             <SoundToggle />
 
             <button
@@ -415,8 +424,9 @@ export default function ClubhousePage() {
                     className="w-full h-full object-cover object-top rounded-t-3xl drop-shadow-[0_15px_15px_rgba(0,0,0,0.6)] border-t-2 border-x-2 border-white/60"
                   />
                   <div className="absolute bottom-2 inset-x-2 bg-slate-900/90 backdrop-blur-sm text-white py-1 px-2 rounded-xl text-center shadow border border-white/20">
+                    {/* ★ 代数を動的表示 */}
                     <span className="text-[10px] font-black text-amber-400 block">
-                      {team.current_year >= 5 ? "2代目エース（主役）" : "新入生エース（あなた）"}
+                      {isSecondGenOrLater ? `${aceGen}代目エース（主役）` : "新入生エース（あなた）"}
                     </span>
                     <span className="text-xs font-black truncate block">{protagonist.name}</span>
                   </div>

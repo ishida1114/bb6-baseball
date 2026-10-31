@@ -123,7 +123,6 @@ export function determineCareerAndMessage(player: Player): GraduatedPlayerWithCa
     ? ((player.pitch_speed || 65) + (player.control || 65) + (player.fielding || 65)) / 3
     : ((player.contact || 60) + (player.power || 60) + (player.speed || 60) + (player.fielding || 60) + (player.arm || 60)) / 5;
 
-  // 主人公補正
   const effectiveRating = player.is_protagonist ? avgStat + 6 : avgStat;
 
   let title = "大手スポーツ用品メーカー 開発部";
@@ -234,14 +233,18 @@ export function processYearEndGraduation(
 }
 
 /**
- * ★【2代目主役・新エース指名処理】
- * 在校生の中から指定した選手に主役フラグを付与し、部室看板データを自動更新
+ * ★【何代目でもエンドレス継承できる新エース指名処理】
+ * ace_generation を自動インクリメントし、部室看板とローカルストレージを完全同期
  */
 export function assignNextProtagonist(
   team: UserTeam,
   newProtagonistId: number
-): { updatedTeam: UserTeam; newProtagonist: Player } {
+): { updatedTeam: UserTeam; newProtagonist: Player; newGeneration: number } {
   let newProtagonist: Player | null = null;
+
+  // 現在の代数を取得（未設定なら初代の1）➔ カウントアップ
+  const currentGen = (team as any).ace_generation || 1;
+  const newGeneration = currentGen + 1;
 
   const updatedPlayers = team.players.map((p) => {
     if (p.id === newProtagonistId) {
@@ -260,14 +263,15 @@ export function assignNextProtagonist(
   const updatedTeam: UserTeam = {
     ...team,
     players: updatedPlayers,
-  };
+    ace_generation: newGeneration,
+  } as any;
 
   if (typeof window !== "undefined") {
     localStorage.setItem("bb6_myTeam", JSON.stringify(updatedTeam));
     localStorage.setItem("bb6_custom_protagonist", JSON.stringify(newProtagonist));
   }
 
-  return { updatedTeam, newProtagonist };
+  return { updatedTeam, newProtagonist, newGeneration };
 }
 
 export async function generateDraftCandidates(
@@ -440,7 +444,8 @@ export async function executeOpeningDraft(userTeamName = "青葉女子大学野�
     order: userOrder,
     players: userTeamPlayers,
     cooldowns: [],
-  } as UserTeam;
+    ace_generation: 1,
+  } as any;
 
   const leagueTeams: LeagueTeam[] = OPPONENT_UNIVERSITIES.map((baseUni, idx) => {
     const oppPlayers = teamRosters[idx + 1];
@@ -606,7 +611,7 @@ export async function finalizeOpeningScout(
 
   const eligiblePool = ((allPoolPlayers || []) as Player[]).filter((p) => !EXCLUDED_DRAFT_IDS.has(p.id));
   const shuffle = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
-  const pool = shuffle(eligiblePool);
+  const shuffledPool = shuffle(eligiblePool);
 
   const userOrder = generateTeamOrder(aobaPlayers);
   const userTeam: UserTeam = {
@@ -618,39 +623,98 @@ export async function finalizeOpeningScout(
     order: userOrder,
     players: aobaPlayers,
     cooldowns: [],
-  } as UserTeam;
+    ace_generation: 1,
+  } as any;
 
   const aobaIds = new Set(aobaPlayers.map((p) => p.id));
-  const remainingPool = pool.filter((p) => !aobaIds.has(p.id));
+  const availablePool = shuffledPool.filter((p) => !aobaIds.has(p.id));
 
-  const leagueTeams: LeagueTeam[] = OPPONENT_UNIVERSITIES.map((baseUni) => {
-    const rejectedForThisUni = remainingPool.filter(
-      (p) => rejectedMap[p.id] === baseUni.name
-    );
-    const assignedIds = new Set(rejectedForThisUni.map((p) => p.id));
+  const teamRosters: Record<string, Player[]> = {};
+  const assignedIds = new Set<number>();
 
-    const oppPlayers: Player[] = [...rejectedForThisUni];
+  OPPONENT_UNIVERSITIES.forEach((baseUni) => {
+    const preferred = availablePool.filter((p) => rejectedMap[p.id] === baseUni.name);
+    teamRosters[baseUni.name] = [...preferred];
+    preferred.forEach((p) => assignedIds.add(p.id));
+  });
 
-    for (let i = remainingPool.length - 1; i >= 0; i--) {
-      if (oppPlayers.length >= 10) break;
-      const candidate = remainingPool[i];
-      if (!assignedIds.has(candidate.id) && !rejectedMap[candidate.id]) {
-        oppPlayers.push(candidate);
-        assignedIds.add(candidate.id);
-        remainingPool.splice(i, 1);
+  const freePool = availablePool.filter((p) => !assignedIds.has(p.id) && !rejectedMap[p.id]);
+  const uniquePool = shuffle(freePool.filter((p) => hasUniqueImage(p)));
+  const genericPool = shuffle(freePool.filter((p) => !hasUniqueImage(p)));
+
+  OPPONENT_UNIVERSITIES.forEach((baseUni) => {
+    const uName = baseUni.name;
+    let currUniques = teamRosters[uName].filter(hasUniqueImage).length;
+    while (currUniques < 2 && uniquePool.length > 0 && teamRosters[uName].length < 10) {
+      const p = uniquePool.pop()!;
+      teamRosters[uName].push(p);
+      assignedIds.add(p.id);
+      currUniques++;
+    }
+  });
+
+  const shuffledUnisFor3rd = shuffle([...OPPONENT_UNIVERSITIES]);
+  shuffledUnisFor3rd.forEach((baseUni) => {
+    const uName = baseUni.name;
+    const currUniques = teamRosters[uName].filter(hasUniqueImage).length;
+    if (currUniques < 3 && uniquePool.length > 0 && teamRosters[uName].length < 10 && Math.random() < 0.7) {
+      const p = uniquePool.pop()!;
+      teamRosters[uName].push(p);
+      assignedIds.add(p.id);
+    }
+  });
+
+  OPPONENT_UNIVERSITIES.forEach((baseUni) => {
+    const uName = baseUni.name;
+    const hasPitcher = teamRosters[uName].some((p) => p.main_position === "P");
+    if (!hasPitcher) {
+      const genericPIdx = genericPool.findIndex((p) => p.main_position === "P");
+      if (genericPIdx !== -1) {
+        const p = genericPool.splice(genericPIdx, 1)[0];
+        teamRosters[uName].push(p);
+        assignedIds.add(p.id);
+      } else {
+        const uniquePIdx = uniquePool.findIndex((p) => p.main_position === "P");
+        if (uniquePIdx !== -1) {
+          const p = uniquePool.splice(uniquePIdx, 1)[0];
+          teamRosters[uName].push(p);
+          assignedIds.add(p.id);
+        }
       }
     }
+  });
 
-    if (!oppPlayers.some((p) => p.main_position === "P") && oppPlayers.length > 0) {
-      const pCand = remainingPool.find((p) => p.main_position === "P");
-      if (pCand) oppPlayers[oppPlayers.length - 1] = pCand;
+  OPPONENT_UNIVERSITIES.forEach((baseUni) => {
+    const uName = baseUni.name;
+    while (teamRosters[uName].length < 10 && genericPool.length > 0) {
+      teamRosters[uName].push(genericPool.pop()!);
     }
+    while (teamRosters[uName].length < 10 && uniquePool.length > 0) {
+      teamRosters[uName].push(uniquePool.pop()!);
+    }
+  });
 
-    const grades = shuffle([1, 1, 1, 2, 2, 3, 3, 3, 4, 4]);
-    const finalizedOppPlayers = oppPlayers.map((p, idx) => ({
-      ...p,
-      grade: p.grade ?? (grades[idx] || 1),
-    }));
+  const leagueTeams: LeagueTeam[] = OPPONENT_UNIVERSITIES.map((baseUni) => {
+    const rawPlayers = teamRosters[baseUni.name] || [];
+    const availableGrades = shuffle([...INITIAL_GRADES]);
+
+    const finalizedOppPlayers: Player[] = [];
+    const regularPlayers: Player[] = [];
+
+    rawPlayers.forEach((p) => {
+      if (rejectedMap[p.id] === baseUni.name) {
+        finalizedOppPlayers.push({ ...p, grade: 1 });
+        const g1Idx = availableGrades.indexOf(1);
+        if (g1Idx !== -1) availableGrades.splice(g1Idx, 1);
+      } else {
+        regularPlayers.push(p);
+      }
+    });
+
+    regularPlayers.forEach((p) => {
+      const g = availableGrades.pop() || 1;
+      finalizedOppPlayers.push({ ...p, grade: g });
+    });
 
     const oppOrder = generateTeamOrder(finalizedOppPlayers);
 
