@@ -954,12 +954,12 @@ export default function ClubhousePage() {
           className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center cursor-pointer animate-in fade-in duration-700 select-none"
           onClick={handleCloseSeasonIntro}
         >
-          <img 
-            src={showSeasonIntro.img} 
-            alt={showSeasonIntro.season} 
-            className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-overlay"
-            onError={(e) => { e.currentTarget.style.display = "none"; }}
-          />
+          {/* 修正後（ハッキリ綺麗に映る設定） */}
+<img 
+  src={showSeasonIntro.img} 
+  alt={showSeasonIntro.season} 
+  className="absolute inset-0 w-full h-full object-cover opacity-80"
+/>
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-slate-950/80 pointer-events-none" />
           
           <div className="relative z-10 flex flex-col items-center space-y-4 md:space-y-6">
