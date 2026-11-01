@@ -58,7 +58,7 @@ function getSeasonOpponent(team: UserTeam): LeagueTeam {
     if (rnd === 4 || team.has_won_summer) {
       return getAsiaAllStars();
     }
-    // ★ 敗退フラグに応じた対戦相手分岐
+    // 敗退フラグに応じた対戦相手分岐
     if (!team.has_lost_summer) {
       if (rnd === 1) return oppList[6] || oppList[0]; // 富士見
       if (rnd === 2) return oppList[2] || oppList[1]; // 黒潮（準決勝）
@@ -91,7 +91,7 @@ export default function ClubhousePage() {
   const [rankingTab, setRankingTab] = useState<"BATTER" | "PITCHER">("BATTER");
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
-  // ★ 突発カフェお誘いイベント
+  // 突発カフェお誘いイベント
   const [cafeInvite, setCafeInvite] = useState<{ partnerId: number; partnerName: string } | null>(null);
 
   useEffect(() => {
@@ -136,21 +136,43 @@ export default function ClubhousePage() {
         }
       }
 
-      // ★ カフェ突発お誘いチェック
+      // ★【改善】カフェ突発お誘いチェック（古い節の倉持の居座りを完全消去！）
       const currentRnd = parsed.current_round || 1;
+      const currentSeason = parsed.current_season || "SPRING";
       const lastCafe = (parsed as any).last_cafe_round || 0;
       const savedInvite = localStorage.getItem("bb6_cafe_invite");
 
+      let validInvite: { partnerId: number; partnerName: string; round?: number; season?: string } | null = null;
+
       if (savedInvite) {
         try {
-          setCafeInvite(JSON.parse(savedInvite));
-        } catch {}
-      } else if (lastCafe !== currentRnd && Math.random() < 0.22) {
-        // 22%の確率で仲間からの逆指名が発生
+          const parsedInvite = JSON.parse(savedInvite);
+          // 節とシーズンが合致している場合のみ有効とする
+          if (parsedInvite.round === currentRnd && parsedInvite.season === currentSeason) {
+            validInvite = parsedInvite;
+            setCafeInvite(parsedInvite);
+          } else {
+            // ★ 過去の節のゴミデータ（倉持）は即座に完全破棄！
+            localStorage.removeItem("bb6_cafe_invite");
+            setCafeInvite(null);
+          }
+        } catch {
+          localStorage.removeItem("bb6_cafe_invite");
+          setCafeInvite(null);
+        }
+      }
+
+      // 有効なお誘いがなく、今節まだカフェに行っていない場合に22%でランダム選出
+      if (!validInvite && lastCafe !== currentRnd && Math.random() < 0.22) {
         const teammates = parsed.players.filter((p) => !p.is_protagonist);
         if (teammates.length > 0) {
           const picked = teammates[Math.floor(Math.random() * teammates.length)];
-          const newInvite = { partnerId: picked.id, partnerName: picked.name };
+          const newInvite = {
+            partnerId: picked.id,
+            partnerName: picked.name,
+            round: currentRnd,
+            season: currentSeason,
+          };
           localStorage.setItem("bb6_cafe_invite", JSON.stringify(newInvite));
           setCafeInvite(newInvite);
         }
@@ -162,7 +184,7 @@ export default function ClubhousePage() {
     }
   }, [router]);
 
-  // ★ 夏のトーナメント進捗リストの動的生成
+  // 夏のトーナメント進捗リストの動的生成
   const summerSchedule = useMemo(() => {
     if (!team) return [];
     const rnd = team.current_round || 1;
@@ -406,7 +428,6 @@ export default function ClubhousePage() {
     },
   ];
 
-  // ★ 次戦カードのバッジテキスト（敗退フラグに完全連動）
   const getMatchCardBadgeText = () => {
     if (season === "SPRING") {
       const titles = ["学内紅白戦 A", "学内紅白戦 B", "全日本実業団選抜戦", "大学オールスター戦"];
@@ -515,7 +536,7 @@ export default function ClubhousePage() {
                 </button>
               </div>
 
-              {/* ★ 突発カフェお誘いバナー（部室内表示） */}
+              {/* 突発カフェお誘いバナー（部室内表示） */}
               {cafeInvite && (
                 <div className="absolute top-4 right-4 z-10 animate-bounce duration-1000">
                   <Link
@@ -711,7 +732,6 @@ export default function ClubhousePage() {
               </div>
             )}
 
-            {/* 夏のトーナメント進捗（勝敗分岐に完全連動） */}
             {season === "SUMMER" && (
               <div className="bg-white border border-slate-200/80 rounded-3xl p-4 md:p-5 shadow-sm space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -827,12 +847,9 @@ export default function ClubhousePage() {
 
         </div>
 
-        {/* ============================================================== */}
-        {/* ★【下部メニュー】3大コマンド（全体練習 / 放課後カフェ / 設備投資） */}
-        {/* ============================================================== */}
+        {/* 下部メニュー（3大コマンド） */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
           
-          {/* ① 全体練習・特訓合宿 */}
           <Link
             href="/training"
             className="bg-white border border-slate-200/80 hover:border-amber-400 p-4 rounded-3xl shadow-sm transition flex items-center justify-between group"
@@ -853,7 +870,6 @@ export default function ClubhousePage() {
             <ChevronRight size={18} className="text-slate-400 group-hover:text-amber-700 transition shrink-0 ml-1" />
           </Link>
 
-          {/* ② 放課後カフェ（個別交流） */}
           <Link
             href="/cafe"
             className={`border p-4 rounded-3xl shadow-sm transition flex items-center justify-between group relative overflow-hidden ${
@@ -884,7 +900,6 @@ export default function ClubhousePage() {
             <ChevronRight size={18} className="text-slate-400 group-hover:text-orange-600 transition shrink-0 ml-1" />
           </Link>
 
-          {/* ③ グラウンド整備・設備投資 */}
           <Link
             href="/facilities"
             className="bg-white border border-slate-200/80 hover:border-emerald-400 p-4 rounded-3xl shadow-sm transition flex items-center justify-between group"

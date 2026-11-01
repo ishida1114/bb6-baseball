@@ -124,19 +124,38 @@ export default function CafePage() {
       const proto = parsed.players.find((p) => p.is_protagonist) || parsed.players[0];
       setProtagonist(proto);
 
-      const defaultPartner = parsed.players.find((p) => p.id !== proto.id) || parsed.players[1];
-      if (defaultPartner) {
-        setSelectedPartnerId(defaultPartner.id);
-      }
+      const currentRnd = parsed.current_round || 1;
+      const currentSeason = parsed.current_season || "SPRING";
 
+      // ★ 突発招待フラグの確認（現在の節とシーズンに合致するものだけ採用）
+      let matchedInvite = false;
       const inviteStr = localStorage.getItem("bb6_cafe_invite");
       if (inviteStr) {
-        setIsInvited(true);
-        setSelectedTierId(2);
         try {
           const invData = JSON.parse(inviteStr);
-          if (invData.partnerId) setSelectedPartnerId(invData.partnerId);
-        } catch {}
+          if (invData.round === currentRnd && invData.season === currentSeason) {
+            const invitePlayerExists = parsed.players.find((p) => p.id === invData.partnerId);
+            if (invitePlayerExists) {
+              setIsInvited(true);
+              setSelectedTierId(2);
+              setSelectedPartnerId(invData.partnerId);
+              matchedInvite = true;
+            }
+          } else {
+            // 過去の節の古いお誘いは消去
+            localStorage.removeItem("bb6_cafe_invite");
+          }
+        } catch {
+          localStorage.removeItem("bb6_cafe_invite");
+        }
+      }
+
+      if (!matchedInvite) {
+        // お誘いがない場合は、主人公以外の最初の部員を選択
+        const defaultPartner = parsed.players.find((p) => p.id !== proto.id) || parsed.players[1];
+        if (defaultPartner) {
+          setSelectedPartnerId(defaultPartner.id);
+        }
       }
     } catch {
       router.replace("/");
@@ -218,9 +237,8 @@ export default function CafePage() {
       (updatedTeam as any).last_cafe_round = currentRound;
 
       localStorage.setItem("bb6_myTeam", JSON.stringify(updatedTeam));
-      if (isInvited) {
-        localStorage.removeItem("bb6_cafe_invite");
-      }
+      // ★ カフェを利用したのでお誘いフラグは必ず完全消去
+      localStorage.removeItem("bb6_cafe_invite");
       setTeam(updatedTeam);
 
       const reply = isGreat
@@ -304,21 +322,21 @@ export default function CafePage() {
               {isInvited && (
                 <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-3 rounded-2xl text-xs font-black flex items-center gap-2 mt-2 animate-pulse">
                   <Sparkles size={16} className="text-emerald-600 shrink-0" />
-                  部員からのお誘いが発生中！ 今回は部費消費0円でカフェへ行けます！
+                  {partner.name.split(" ")[0]} からのお誘いが発生中！ 今回は部費消費0円でカフェへ行けます！
                 </div>
               )}
             </div>
 
-            {/* ① 誘うチームメイトの選択 */}
+            {/* ① 誘うチームメイトの選択（カード形式） */}
             <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
                   <Users size={15} className="text-amber-600" /> ① 誰をカフェに誘う？
                 </h3>
-                <span className="text-[10px] text-slate-500 font-bold">主人公以外の部員を選択</span>
+                <span className="text-[10px] text-slate-500 font-bold">選手カードをタップして選択</span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 max-h-56 overflow-y-auto p-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 max-h-72 overflow-y-auto p-1">
                 {team.players
                   .filter((p) => p.id !== protagonist.id)
                   .map((p) => {
@@ -327,24 +345,34 @@ export default function CafePage() {
                       <div
                         key={p.id}
                         onClick={() => setSelectedPartnerId(p.id)}
-                        className={`p-2.5 rounded-2xl border-2 flex flex-col items-center cursor-pointer transition text-center ${
+                        className={`p-2.5 rounded-2xl border-2 flex flex-col items-center cursor-pointer transition text-center relative overflow-hidden ${
                           isSelected
-                            ? "bg-amber-50 border-amber-500 ring-2 ring-amber-400 scale-[1.02] shadow-md"
+                            ? "bg-amber-50 border-amber-500 ring-4 ring-amber-400/50 shadow-md scale-[1.02]"
                             : "bg-slate-50 border-slate-200 hover:border-slate-300"
                         }`}
                       >
-                        <div className="relative w-12 h-12 rounded-full overflow-hidden bg-slate-800 mb-1.5 border border-slate-300 shadow">
+                        {isSelected && (
+                          <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shadow">
+                            <Check size={12} strokeWidth={3} />
+                          </div>
+                        )}
+
+                        {/* カード風写真エリア */}
+                        <div className="relative w-full aspect-[4/5] rounded-xl overflow-hidden bg-slate-800 mb-2 border border-slate-200 shadow-sm">
                           <img src={getPlayerAvatarUrl(p)} alt={p.name} className="w-full h-full object-cover" />
-                          <span className="absolute bottom-0 right-0 bg-slate-900 text-white text-[8px] font-black px-1 rounded">
+                          <span className="absolute bottom-1 right-1 bg-slate-950/90 text-white text-[9px] font-mono font-black px-1.5 py-0.2 rounded border border-white/20">
                             {p.main_position}
                           </span>
                         </div>
+
                         <span className="font-black text-xs text-slate-900 truncate w-full">
-                          {p.name.split(" ")[0]}
+                          {p.name}
                         </span>
-                        <span className="text-[9px] text-slate-500 font-mono font-bold">
-                          スタミナ: {p.stamina || 65}
-                        </span>
+                        <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono font-bold mt-0.5">
+                          <span>第{p.grade ?? 1}学年</span>
+                          <span>•</span>
+                          <span className="text-amber-700">ST:{p.stamina || 65}</span>
+                        </div>
                       </div>
                     );
                   })}
@@ -514,47 +542,91 @@ export default function CafePage() {
         )}
 
         {/* ============================================================== */}
-        {/* STEP 2：カフェでの対話（タメ口3択の声掛け） */}
+        {/* ★【改修点②】STEP 2：カフェでの対話（カード形式で向かい合うシーン） */}
         {/* ============================================================== */}
         {sceneStep === "TALK" && (
           <div className="space-y-5 animate-in fade-in duration-300">
             
-            <div className="relative w-full h-64 md:h-80 rounded-3xl overflow-hidden border-2 border-amber-300 shadow-xl bg-slate-900">
+            {/* カフェ背景 ＆ 2人の選手カード対面ステージ */}
+            <div className="relative w-full h-[380px] sm:h-[420px] rounded-3xl overflow-hidden border-2 border-amber-300 shadow-2xl bg-slate-950 flex flex-col justify-between p-4 sm:p-6">
+              
+              {/* 背景カフェ画像 */}
               <img
                 src={selectedTier.imageUrl}
                 alt={selectedTier.name}
-                className="w-full h-full object-cover object-center"
+                className="absolute inset-0 w-full h-full object-cover object-center blur-[1px] scale-105"
                 onError={(e) => {
                   e.currentTarget.style.display = "none";
                 }}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent pointer-events-none" />
 
-              <div className="absolute bottom-4 inset-x-6 flex items-end justify-between">
+              {/* 上部店舗ラベル */}
+              <div className="relative z-10 flex items-center justify-between">
+                <span className="font-mono text-xs font-black text-amber-300 bg-slate-950/80 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-amber-400/40 shadow-lg flex items-center gap-1.5">
+                  <Coffee size={14} className="text-amber-400" /> {selectedTier.name} ({selectedTier.subTitle})
+                </span>
+                <span className="text-[10px] font-mono text-white/80 bg-slate-900/80 px-2.5 py-1 rounded-full border border-white/20">
+                  放課後トークタイム
+                </span>
+              </div>
+
+              {/* ★ テーブルを挟んで向かい合う【2枚の選手カード】 */}
+              <div className="relative z-10 flex items-end justify-around gap-3 sm:gap-6 pb-2">
                 
-                {/* 主人公 */}
-                <div className="flex items-center gap-3">
-                  <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-2 border-amber-400 shadow-2xl bg-slate-800 shrink-0">
+                {/* 左：主人公カード（あなた） */}
+                <div className="w-36 sm:w-44 bg-slate-900/90 backdrop-blur-md border-2 border-amber-400/90 rounded-2xl p-2.5 sm:p-3 shadow-2xl flex flex-col items-center text-center space-y-1.5 transform hover:scale-105 transition">
+                  <span className="text-[9px] sm:text-[10px] font-black bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-mono">
+                    あなた（エース）
+                  </span>
+                  
+                  {/* カード写真 */}
+                  <div className="relative w-full aspect-[4/5] rounded-xl overflow-hidden bg-slate-800 border border-white/20 shadow">
                     <img src={getPlayerAvatarUrl(protagonist)} alt="主人公" className="w-full h-full object-cover" />
+                    <span className="absolute bottom-1 right-1 bg-slate-950 text-white text-[9px] font-black px-1 rounded">
+                      {protagonist.main_position}
+                    </span>
                   </div>
-                  <div className="bg-slate-900/90 backdrop-blur-sm border border-white/20 text-white px-3 py-1.5 rounded-2xl shadow">
-                    <span className="text-[10px] text-amber-400 font-black block">あなた</span>
-                    <span className="text-xs font-black">{protagonist.name.split(" ")[0]}</span>
+
+                  <div className="w-full">
+                    <span className="font-black text-xs sm:text-sm text-white block truncate">
+                      {protagonist.name}
+                    </span>
+                    <span className="text-[9px] sm:text-[10px] font-mono text-amber-300 block">
+                      STAMINA: {protagonist.stamina || 65}
+                    </span>
                   </div>
                 </div>
 
-                <div className="text-center font-mono text-xs font-black text-amber-300 bg-slate-900/80 px-3 py-1 rounded-full border border-amber-400/40 shadow">
-                  ☕ {selectedTier.name}
+                {/* 中央テーブル演出 */}
+                <div className="hidden sm:flex flex-col items-center justify-center space-y-1 my-auto text-amber-300 opacity-80">
+                  <span className="text-2xl animate-pulse">☕</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">TALK</span>
                 </div>
 
-                {/* 相手 */}
-                <div className="flex items-center gap-3 flex-row-reverse text-right">
-                  <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-2 border-white shadow-2xl bg-slate-800 shrink-0 animate-bounce duration-1000">
+                {/* 右：チームメイトカード（相手） */}
+                <div className={`w-36 sm:w-44 bg-slate-900/90 backdrop-blur-md border-2 border-white/80 rounded-2xl p-2.5 sm:p-3 shadow-2xl flex flex-col items-center text-center space-y-1.5 transform hover:scale-105 transition ${
+                  isProcessing ? "animate-bounce duration-500 ring-4 ring-amber-400" : ""
+                }`}>
+                  <span className="text-[9px] sm:text-[10px] font-black bg-white/20 text-white px-2 py-0.5 rounded-full font-mono">
+                    チームメイト
+                  </span>
+                  
+                  {/* カード写真 */}
+                  <div className="relative w-full aspect-[4/5] rounded-xl overflow-hidden bg-slate-800 border border-white/20 shadow">
                     <img src={getPlayerAvatarUrl(partner)} alt={partner.name} className="w-full h-full object-cover" />
+                    <span className="absolute bottom-1 right-1 bg-slate-950 text-white text-[9px] font-black px-1 rounded">
+                      {partner.main_position}
+                    </span>
                   </div>
-                  <div className="bg-slate-900/90 backdrop-blur-sm border border-white/20 text-white px-3 py-1.5 rounded-2xl shadow">
-                    <span className="text-[10px] text-slate-300 font-bold block">チームメイト</span>
-                    <span className="text-xs font-black">{partner.name}</span>
+
+                  <div className="w-full">
+                    <span className="font-black text-xs sm:text-sm text-white block truncate">
+                      {partner.name}
+                    </span>
+                    <span className="text-[9px] sm:text-[10px] font-mono text-emerald-400 block">
+                      STAMINA: {partner.stamina || 65}
+                    </span>
                   </div>
                 </div>
 
