@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { UserTeam, Player, PositionType, LeagueData, SeasonPhase, LeagueTeam } from "@/types/baseball";
 import { loadLeagueData, OPPONENT_UNIVERSITIES } from "@/lib/league";
@@ -24,9 +24,20 @@ interface TitleRankEntry {
   detail: string;
 }
 
+/**
+ * 季節および勝敗分岐に応じた対戦相手の決定
+ */
 function getSeasonOpponent(team: UserTeam): LeagueTeam {
   const season: SeasonPhase = team.current_season || "SPRING";
   const rnd = team.current_round || 1;
+
+  let oppList = OPPONENT_UNIVERSITIES;
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem("bb6_league_opponents");
+    if (saved) {
+      try { oppList = JSON.parse(saved); } catch {}
+    }
+  }
 
   if (season === "SPRING") {
     switch (rnd) {
@@ -46,22 +57,21 @@ function getSeasonOpponent(team: UserTeam): LeagueTeam {
     if (rnd === 4 || team.has_won_summer) {
       return getAsiaAllStars();
     }
-    if (rnd === 1) return OPPONENT_UNIVERSITIES[6];
-    if (rnd === 2) return OPPONENT_UNIVERSITIES[2];
-    return OPPONENT_UNIVERSITIES[1];
+    // ★ 敗退フラグに応じた対戦相手分岐
+    if (!team.has_lost_summer) {
+      if (rnd === 1) return oppList[6] || oppList[0]; // 富士見
+      if (rnd === 2) return oppList[2] || oppList[1]; // 黒潮（準決勝）
+      return oppList[1] || oppList[0];                // 白百合（決勝）
+    } else {
+      if (rnd === 2) return oppList[4] || oppList[0]; // 紅蓮（敗者復活1回戦）
+      return oppList[0] || oppList[3];                // 桜華学院（3位決定戦）
+    }
   }
 
   if (season === "AUTUMN" && (rnd === 8 || team.has_won_autumn)) {
     return getUsaAllStars();
   }
   
-  let oppList = OPPONENT_UNIVERSITIES;
-  if (typeof window !== "undefined") {
-    const saved = localStorage.getItem("bb6_league_opponents");
-    if (saved) {
-      try { oppList = JSON.parse(saved); } catch {}
-    }
-  }
   return oppList[rnd - 1] || oppList[0];
 }
 
@@ -91,7 +101,7 @@ export default function ClubhousePage() {
     try {
       const parsed: UserTeam = JSON.parse(saved);
       
-      // ★ 人数不足ガード：10名未満（4年生引退直後）なら新歓スカウトへ強制誘導
+      // 人数不足ガード：10名未満（4年生引退直後）なら新歓スカウトへ強制誘導
       if (parsed.players && parsed.players.length < 10) {
         router.replace("/scout-spring");
         return;
@@ -127,6 +137,48 @@ export default function ClubhousePage() {
       setLoading(false);
     }
   }, [router]);
+
+  // ★ 夏のトーナメント進捗リストの動的生成
+  const summerSchedule = useMemo(() => {
+    if (!team) return [];
+    const rnd = team.current_round || 1;
+    const hasLost = team.has_lost_summer || false;
+
+    let oppList = OPPONENT_UNIVERSITIES;
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("bb6_league_opponents");
+      if (saved) {
+        try { oppList = JSON.parse(saved); } catch {}
+      }
+    }
+
+    const r1 = { rnd: 1, title: "1回戦", opp: oppList[6]?.name || "富士見女子大学", desc: "全国の初戦！ 堅守の曲者を突破せよ" };
+
+    if (!hasLost) {
+      return [
+        r1,
+        { rnd: 2, title: "準決勝", opp: oppList[2]?.name || "黒潮海洋大学", desc: "韋駄天軍団！ 機動力野球を封じ込めろ" },
+        { rnd: 3, title: "決勝戦", opp: oppList[1]?.name || "白百合女子大学", desc: "名門決戦！ 優勝でアジア選手権へ！" },
+        { rnd: 4, title: "★特別試合", opp: "アジア大学選抜 (Asia)", desc: "国際決戦！ アジアの逸材10名に挑む" },
+      ];
+    } else {
+      if (rnd === 2) {
+        return [
+          r1,
+          { rnd: 2, title: "敗者復活戦", opp: oppList[4]?.name || "紅蓮体育大学", desc: "5〜8位決定トーナメント初戦！" },
+          { rnd: 3, title: "5位決定戦", opp: oppList[3]?.name || "帝都経済大学", desc: "順位決定トーナメント最終戦！" },
+          { rnd: 4, title: "大会終了", opp: "---", desc: "秋季公式リーグへ向けて調整" },
+        ];
+      } else {
+        return [
+          r1,
+          { rnd: 2, title: "準決勝", opp: oppList[2]?.name || "黒潮海洋大学", desc: "韋駄天軍団！ 機動力野球を封じ込めろ" },
+          { rnd: 3, title: "3位決定戦", opp: oppList[0]?.name || "桜華学院大学", desc: "全国3位を懸けた伝統校とのプライド対決！" },
+          { rnd: 4, title: "大会終了", opp: "---", desc: "秋季公式リーグへ向けて調整" },
+        ];
+      }
+    }
+  }, [team]);
 
   if (loading || !team || !league) {
     return (
@@ -176,6 +228,13 @@ export default function ClubhousePage() {
         return [
           "全国大会優勝、おめでとうございます！ ついにアジア最強『アジア大学選抜』との国際親善試合です！",
           "アジア各地から集ったトップ選手たちを相手に、青葉のチームワークを見せつけましょう！",
+        ];
+      }
+      if (team.has_lost_summer) {
+        return [
+          `準決勝は惜しかったですが、まだ終わりじゃありません！ 第${team.current_round}戦は【${opponent.name}】との3位決定戦です！`,
+          "全国3位の栄誉を勝ち取って、秋の公式リーグへ弾みをつけましょう！",
+          "負けた悔しさを力に変えて、最後の一球まで全力で戦い抜きましょう！",
         ];
       }
       return [
@@ -317,6 +376,7 @@ export default function ClubhousePage() {
     },
   ];
 
+  // ★ 次戦カードのバッジテキスト（敗退フラグに完全連動）
   const getMatchCardBadgeText = () => {
     if (season === "SPRING") {
       const titles = ["学内紅白戦 A", "学内紅白戦 B", "全日本実業団選抜戦", "大学オールスター戦"];
@@ -324,8 +384,14 @@ export default function ClubhousePage() {
     }
     if (season === "SUMMER") {
       if (team.current_round === 4 || team.has_won_summer) return "アジア大学選手権（国際大会）";
-      const stages = ["1回戦", "準決勝", "決勝戦"];
-      return `全国大学トーナメント ${stages[team.current_round - 1] || `${team.current_round}回戦`}`;
+      if (!team.has_lost_summer) {
+        const stages = ["1回戦", "準決勝", "決勝戦"];
+        return `全国大学トーナメント ${stages[team.current_round - 1] || `${team.current_round}回戦`}`;
+      } else {
+        return team.current_round === 2 
+          ? "全国大学トーナメント 敗者復活戦（5〜8位決定戦）" 
+          : "全国大学トーナメント 3位決定戦";
+      }
     }
     if (team.current_round === 8 || team.has_won_autumn) {
       return "日米親善決戦（全米カレッジ選抜戦）";
@@ -363,7 +429,9 @@ export default function ClubhousePage() {
                 {season === "SPRING"
                   ? `春季プレシーズン（第${team.current_round}/4戦） 新歓オープン戦 ＆ 適性テスト`
                   : season === "SUMMER"
-                  ? `全国大学トーナメント（第${team.current_round}戦） 全国覇者決定戦`
+                  ? team.has_lost_summer
+                    ? `全国大学トーナメント（順位決定戦） 全国3位決定戦`
+                    : `全国大学トーナメント（第${team.current_round}戦） 全国覇者決定戦`
                   : (team.current_round === 8 || team.has_won_autumn)
                   ? `日米親善大学野球選手権（全米カレッジ選抜戦） 世界頂上決戦`
                   : `6人制大学公式リーグ（現在 第${team.current_round}/7節）`}
@@ -600,6 +668,7 @@ export default function ClubhousePage() {
               </div>
             )}
 
+            {/* ★【改善③】夏のトーナメント進捗（勝敗分岐に完全連動） */}
             {season === "SUMMER" && (
               <div className="bg-white border border-slate-200/80 rounded-3xl p-4 md:p-5 shadow-sm space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -610,12 +679,7 @@ export default function ClubhousePage() {
                 </div>
 
                 <div className="space-y-2 text-xs font-medium">
-                  {[
-                    { rnd: 1, title: "1回戦", opp: "富士見女子大学", desc: "全国の初戦！ 堅守の曲者を突破せよ" },
-                    { rnd: 2, title: "準決勝", opp: "黒潮海洋大学", desc: "韋駄天軍団！ 機動力野球を封じ込めろ" },
-                    { rnd: 3, title: "決勝戦", opp: "白百合女子大学", desc: "名門決戦！ 優勝でアジア選手権へ！" },
-                    { rnd: 4, title: "★特別試合", opp: "アジア大学選抜 (Asia)", desc: "国際決戦！ アジアの逸材10名に挑む" },
-                  ].map((item) => {
+                  {summerSchedule.map((item) => {
                     const isDone = team.current_round > item.rnd;
                     const isCurrent = team.current_round === item.rnd;
 
