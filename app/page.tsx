@@ -58,14 +58,13 @@ function getSeasonOpponent(team: UserTeam): LeagueTeam {
     if (rnd === 4 || team.has_won_summer) {
       return getAsiaAllStars();
     }
-    // 敗退フラグに応じた対戦相手分岐
     if (!team.has_lost_summer) {
       if (rnd === 1) return oppList[6] || oppList[0]; // 富士見
-      if (rnd === 2) return oppList[2] || oppList[1]; // 黒潮（準決勝）
-      return oppList[1] || oppList[0];                // 白百合（決勝）
+      if (rnd === 2) return oppList[2] || oppList[1]; // 黒潮
+      return oppList[1] || oppList[0];                // 白百合
     } else {
-      if (rnd === 2) return oppList[4] || oppList[0]; // 紅蓮（敗者復活1回戦）
-      return oppList[0] || oppList[3];                // 桜華学院（3位決定戦）
+      if (rnd === 2) return oppList[4] || oppList[0]; // 紅蓮
+      return oppList[0] || oppList[3];                // 桜華学院
     }
   }
 
@@ -94,6 +93,9 @@ export default function ClubhousePage() {
   // 突発カフェお誘いイベント
   const [cafeInvite, setCafeInvite] = useState<{ partnerId: number; partnerName: string } | null>(null);
 
+  // ★ シーズン開幕イントロ演出用ステート
+  const [showSeasonIntro, setShowSeasonIntro] = useState<{ season: SeasonPhase; img: string } | null>(null);
+
   useEffect(() => {
     playBgm("clubhouse");
 
@@ -105,7 +107,7 @@ export default function ClubhousePage() {
     try {
       const parsed: UserTeam = JSON.parse(saved);
       
-      // 人数不足ガード：10名未満（4年生引退直後）なら新歓スカウトへ強制誘導
+      // 人数不足ガード
       if (parsed.players && parsed.players.length < 10) {
         router.replace("/scout-spring");
         return;
@@ -136,23 +138,35 @@ export default function ClubhousePage() {
         }
       }
 
-      // ★【改善】カフェ突発お誘いチェック（古い節の倉持の居座りを完全消去！）
+      const currentYear = parsed.current_year || 1;
       const currentRnd = parsed.current_round || 1;
       const currentSeason = parsed.current_season || "SPRING";
       const lastCafe = (parsed as any).last_cafe_round || 0;
-      const savedInvite = localStorage.getItem("bb6_cafe_invite");
 
+      // =========================================================
+      // ★ 新機能：各シーズンの第1節（開幕時）にイントロ演出を挟む
+      // =========================================================
+      if (currentRnd === 1) {
+        const introKey = `bb6_intro_seen_${currentYear}_${currentSeason}`;
+        if (!localStorage.getItem(introKey)) {
+          setShowSeasonIntro({
+            season: currentSeason,
+            img: currentSeason === "SPRING" ? "/spring.jpg" : currentSeason === "SUMMER" ? "/summer.jpg" : "/autumn.jpg"
+          });
+        }
+      }
+
+      // カフェ突発お誘いチェック
+      const savedInvite = localStorage.getItem("bb6_cafe_invite");
       let validInvite: { partnerId: number; partnerName: string; round?: number; season?: string } | null = null;
 
       if (savedInvite) {
         try {
           const parsedInvite = JSON.parse(savedInvite);
-          // 節とシーズンが合致している場合のみ有効とする
           if (parsedInvite.round === currentRnd && parsedInvite.season === currentSeason) {
             validInvite = parsedInvite;
             setCafeInvite(parsedInvite);
           } else {
-            // ★ 過去の節のゴミデータ（倉持）は即座に完全破棄！
             localStorage.removeItem("bb6_cafe_invite");
             setCafeInvite(null);
           }
@@ -162,7 +176,6 @@ export default function ClubhousePage() {
         }
       }
 
-      // 有効なお誘いがなく、今節まだカフェに行っていない場合に22%でランダム選出
       if (!validInvite && lastCafe !== currentRnd && Math.random() < 0.22) {
         const teammates = parsed.players.filter((p) => !p.is_protagonist);
         if (teammates.length > 0) {
@@ -184,7 +197,15 @@ export default function ClubhousePage() {
     }
   }, [router]);
 
-  // 夏のトーナメント進捗リストの動的生成
+  // ★ シーズン開幕イントロを閉じて部室に入る
+  const handleCloseSeasonIntro = () => {
+    if (showSeasonIntro && team) {
+      const introKey = `bb6_intro_seen_${team.current_year || 1}_${showSeasonIntro.season}`;
+      localStorage.setItem(introKey, "true");
+      setShowSeasonIntro(null);
+    }
+  };
+
   const summerSchedule = useMemo(() => {
     if (!team) return [];
     const rnd = team.current_round || 1;
@@ -451,11 +472,11 @@ export default function ClubhousePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 font-sans select-none p-3 md:p-6 pb-24">
+    <div className="min-h-screen bg-slate-100 text-slate-900 font-sans select-none p-3 md:p-6 pb-24 relative">
       <div className="max-w-7xl mx-auto space-y-5">
         
         {/* トップヘッダー */}
-        <div className="bg-white border border-slate-200/80 p-3.5 md:p-4 rounded-3xl shadow-sm flex flex-wrap items-center justify-between gap-3">
+        <div className="bg-white border border-slate-200/80 p-3.5 md:p-4 rounded-3xl shadow-sm flex flex-wrap items-center justify-between gap-3 relative z-10">
           <div className="flex items-center gap-3">
             <span className="w-3.5 h-3.5 rounded-full bg-emerald-600 shadow-sm" />
             <div>
@@ -511,7 +532,7 @@ export default function ClubhousePage() {
         </div>
 
         {/* メインエリア */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start relative z-10">
 
           {/* 左側：部室 ＆ 主人公ナビゲーター */}
           <div className="lg:col-span-7 space-y-4">
@@ -732,6 +753,7 @@ export default function ClubhousePage() {
               </div>
             )}
 
+            {/* 夏のトーナメント進捗（勝敗分岐に完全連動） */}
             {season === "SUMMER" && (
               <div className="bg-white border border-slate-200/80 rounded-3xl p-4 md:p-5 shadow-sm space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -848,7 +870,7 @@ export default function ClubhousePage() {
         </div>
 
         {/* 下部メニュー（3大コマンド） */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 relative z-10">
           
           <Link
             href="/training"
@@ -923,6 +945,40 @@ export default function ClubhousePage() {
         </div>
 
       </div>
+
+      {/* ============================================================== */}
+      {/* ★【新機能】シーズン開幕 イントロ演出 */}
+      {/* ============================================================== */}
+      {showSeasonIntro && (
+        <div 
+          className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center cursor-pointer animate-in fade-in duration-700 select-none"
+          onClick={handleCloseSeasonIntro}
+        >
+          <img 
+            src={showSeasonIntro.img} 
+            alt={showSeasonIntro.season} 
+            className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-overlay"
+            onError={(e) => { e.currentTarget.style.display = "none"; }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-slate-950/80 pointer-events-none" />
+          
+          <div className="relative z-10 flex flex-col items-center space-y-4 md:space-y-6">
+            <span className="text-amber-400 font-bold tracking-[0.3em] text-sm md:text-base drop-shadow-md">
+              {showSeasonIntro.season === "SPRING" ? "🌸 春季プレシーズン 開幕" : showSeasonIntro.season === "SUMMER" ? "🔥 全国大学トーナメント 開幕" : "🍁 秋季公式リーグ 開幕"}
+            </span>
+            <h1 className="text-5xl md:text-7xl font-black text-white tracking-[0.1em] drop-shadow-[0_5px_15px_rgba(0,0,0,0.8)] italic text-center px-4 leading-tight">
+              {showSeasonIntro.season === "SPRING" ? "SPRING SEASON" : showSeasonIntro.season === "SUMMER" ? "SUMMER SEASON" : "AUTUMN SEASON"}
+            </h1>
+            <span className="text-white/80 font-mono font-bold tracking-[0.4em] text-xs md:text-sm drop-shadow-md">
+              GENERATION {team.current_year || 1}
+            </span>
+          </div>
+
+          <div className="absolute bottom-16 text-white/70 text-xs md:text-sm font-bold tracking-[0.2em] animate-pulse flex items-center gap-2">
+            TAP TO START <ChevronRight size={16} />
+          </div>
+        </div>
+      )}
 
       {/* 個人タイトルランキング モーダル */}
       {isRankingOpen && (
