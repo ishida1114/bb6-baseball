@@ -26,51 +26,73 @@ let isMutedState = false;
 let isAudioUnlocked = false;
 const listeners = new Set<(muted: boolean) => void>();
 
-// 初期化（localStorageからミュート状態を復元）
+/**
+ * ユーザー操作時にBGMの再生を試みる（ブロック解除・自己修復）
+ */
+function tryResumeAudio() {
+  isAudioUnlocked = true;
+  if (currentBgmAudio && !isMutedState && currentBgmAudio.paused) {
+    currentBgmAudio.play().catch(() => {});
+  }
+}
+
+// 初期化（localStorageからミュート状態を復元＆全方向インタラクション監視）
 if (typeof window !== "undefined") {
   const saved = localStorage.getItem("bb6_sound_muted");
   isMutedState = saved === "true";
 
-  // ブラウザの自動再生ブロック解除用リスナー
-  const unlock = () => {
-    isAudioUnlocked = true;
-    if (currentBgmAudio && !isMutedState && currentBgmAudio.paused) {
-      currentBgmAudio.play().catch(() => {});
-    }
-    window.removeEventListener("pointerdown", unlock);
-    window.removeEventListener("keydown", unlock);
-  };
-  window.addEventListener("pointerdown", unlock, { once: true });
-  window.addEventListener("keydown", unlock, { once: true });
+  const interactionEvents = ["pointerdown", "touchstart", "click", "keydown"];
+  interactionEvents.forEach((event) => {
+    window.addEventListener(event, tryResumeAudio, { passive: true });
+    document.addEventListener(event, tryResumeAudio, { passive: true });
+  });
 }
 
 /**
- * BGMを再生（同じ曲ならそのまま継続）
+ * 外部から手動でアンロックを試みるヘルパー
+ */
+export function unlockAudio() {
+  tryResumeAudio();
+}
+
+/**
+ * BGMを再生（同じ曲ならそのまま継続、停止中ならリトライ）
  */
 export function playBgm(type: BgmType) {
   if (typeof window === "undefined") return;
 
-  if (currentBgmType === type && currentBgmAudio && !currentBgmAudio.paused) {
+  // 同じ曲が指定された場合
+  if (currentBgmType === type && currentBgmAudio) {
+    if (!currentBgmAudio.paused) {
+      return; // 既に正常再生中なら何もしない
+    }
+    // ブロック等で停止していた場合は再開を試みる
+    if (!isMutedState) {
+      currentBgmAudio.play().catch(() => {});
+    }
     return;
   }
 
-  // 既存のBGMを停止
+  // 異なるBGMが鳴っていれば停止して破棄
   if (currentBgmAudio) {
     try {
       currentBgmAudio.pause();
       currentBgmAudio.currentTime = 0;
     } catch (e) {}
+    currentBgmAudio = null;
   }
 
   currentBgmType = type;
   const audio = new Audio(BGM_PATHS[type]);
   audio.loop = true;
-  audio.volume = 0.35; // BGM音量
+  audio.volume = 0.35;
+  audio.preload = "auto";
   currentBgmAudio = audio;
 
   if (!isMutedState) {
     audio.play().catch(() => {
-      // ユーザー操作前などの自動再生ブロックは初タップ時に解除
+      // ブラウザに自動再生をブロックされた場合もインスタンスは保持
+      // 次のタップ・クリック時に tryResumeAudio で鳴り出す
     });
   }
 }
@@ -97,7 +119,7 @@ export function playSe(type: SeType) {
 
   try {
     const audio = new Audio(SE_PATHS[type]);
-    audio.volume = 0.70; // SE音量
+    audio.volume = 0.70;
     audio.play().catch(() => {});
   } catch (e) {}
 }

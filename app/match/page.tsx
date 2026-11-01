@@ -82,6 +82,25 @@ interface MatchGrowthPlayer {
   val: number;
 }
 
+/**
+ * 守備力に応じた失策（エラー）判定
+ */
+function checkFieldingError(fldScore: number, isTired: boolean): boolean {
+  let rate = 0.05;
+  if (fldScore >= 85) rate = 0.015;
+  else if (fldScore >= 70) rate = 0.03;
+  else if (fldScore >= 60) rate = 0.05;
+  else if (fldScore >= 50) rate = 0.08;
+  else if (fldScore >= 40) rate = 0.12;
+  else rate = 0.18;
+
+  if (isTired) rate += 0.05;
+  return Math.random() < rate;
+}
+
+/**
+ * 対戦相手取得関数（夏の敗戦・順位決定戦分岐に対応）
+ */
 function getSeasonOpponent(team: UserTeam, savedOpponents?: LeagueTeam[]): LeagueTeam {
   const season: SeasonPhase = team.current_season || "SPRING";
   const rnd = team.current_round || 1;
@@ -119,9 +138,15 @@ function getSeasonOpponent(team: UserTeam, savedOpponents?: LeagueTeam[]): Leagu
     if (rnd === 4 || team.has_won_summer) {
       return getAsiaAllStars();
     }
-    if (rnd === 1) return oppList[6] || oppList[0];
-    if (rnd === 2) return oppList[2] || oppList[1];
-    return oppList[1] || oppList[0];
+    // ★ 敗退フラグに応じた対戦相手分岐
+    if (!team.has_lost_summer) {
+      if (rnd === 1) return oppList[6] || oppList[0]; // 富士見
+      if (rnd === 2) return oppList[2] || oppList[1]; // 黒潮（準決勝）
+      return oppList[1] || oppList[0];                // 白百合（決勝）
+    } else {
+      if (rnd === 2) return oppList[4] || oppList[0]; // 紅蓮（敗者復活1回戦）
+      return oppList[3] || oppList[0];                // 帝都経済（5位決定戦）
+    }
   }
 
   if (season === "AUTUMN") {
@@ -156,6 +181,8 @@ export default function MatchPage() {
     oppScore: [0, 0, 0, 0, 0],
     myHits: 0,
     oppHits: 0,
+    myErrors: 0,
+    oppErrors: 0,
     batterIdx: 0,
     oppBatterIdx: 0,
     speedGun: null as { kmh: number; ballType: string } | null,
@@ -205,6 +232,8 @@ export default function MatchPage() {
     transitionMsg?: string;
   } | null>(null);
 
+  // ★ 卒業式モーダル、大団円エンディング、新エース指名モーダル
+  const [showGraduationCeremony, setShowGraduationCeremony] = useState(false);
   const [showGrandEnding, setShowGrandEnding] = useState(false);
   const [showSuccessorModal, setShowSuccessorModal] = useState(false);
   const [selectedSuccessorId, setSelectedSuccessorId] = useState<number | null>(null);
@@ -223,6 +252,8 @@ export default function MatchPage() {
     oppScore: [0, 0, 0, 0, 0],
     myHits: 0,
     oppHits: 0,
+    myErrors: 0,
+    oppErrors: 0,
     batterIdx: 0,
     oppBatterIdx: 0,
     speedGun: null as { kmh: number; ballType: string } | null,
@@ -266,6 +297,8 @@ export default function MatchPage() {
       oppScore: [...g.oppScore],
       myHits: g.myHits,
       oppHits: g.oppHits,
+      myErrors: g.myErrors,
+      oppErrors: g.oppErrors,
       batterIdx: g.batterIdx,
       oppBatterIdx: g.oppBatterIdx,
       speedGun: g.speedGun,
@@ -277,6 +310,7 @@ export default function MatchPage() {
 
   const initNewMatch = useCallback((parsedTeam: UserTeam) => {
     setMatchResult(null);
+    setShowGraduationCeremony(false);
     setShowGrandEnding(false);
     setShowSuccessorModal(false);
     setIsPaused(false);
@@ -291,7 +325,13 @@ export default function MatchPage() {
     const rnd = parsedTeam.current_round || 1;
     let seasonLabel = "春季プレシーズン";
     if (season === "SUMMER") {
-      seasonLabel = rnd === 4 ? "アジア大学選手権" : "夏の全国大会";
+      if (rnd === 4 || parsedTeam.has_won_summer) {
+        seasonLabel = "アジア大学選手権";
+      } else if (parsedTeam.has_lost_summer) {
+        seasonLabel = rnd === 2 ? "全国大会 敗者復活戦" : "全国大会 順位決定戦";
+      } else {
+        seasonLabel = "夏の全国大学トーナメント";
+      }
     } else if (season === "AUTUMN") {
       seasonLabel = (rnd === 8 || parsedTeam.has_won_autumn) ? "日米親善大学野球" : "秋季公式リーグ";
     }
@@ -307,6 +347,8 @@ export default function MatchPage() {
     g.oppScore = [0, 0, 0, 0, 0];
     g.myHits = 0;
     g.oppHits = 0;
+    g.myErrors = 0;
+    g.oppErrors = 0;
     g.batterIdx = 0;
     g.oppBatterIdx = 0;
     g.speedGun = null;
@@ -827,6 +869,19 @@ export default function MatchPage() {
 
       if (g.currentPlayType === "POP_FLY") {
         if (fdist < 22 || g.timer > 48) {
+          const fielderPlayer = getFielderPlayer(closestFielder.pos);
+          const fldScore = fielderPlayer?.fielding ?? 60;
+          const isTired = fielderPlayer ? (g.stamina[fielderPlayer.id] ?? 100) < 35 : false;
+
+          // ★ フライ捕球エラー（落球）判定
+          if (checkFieldingError(fldScore, isTired)) {
+            if (!g.isTop) g.myErrors++;
+            else g.oppErrors++;
+            setBanner({ text: "DROPPED FLY! 痛恨の落球エラー!", color: "#e11d48" });
+            executeAtBatResult(g, "SINGLE", `野手・${fielderPlayer?.name || closestFielder.pos}が目測を誤り落球！ 痛恨の失策！`, currentBatter);
+            return;
+          }
+
           if (!g.isTop && team) {
             const fielderId = team.order.defense_positions[closestFielder.pos];
             if (fielderId) g.stamina[fielderId] = Math.max(5, (g.stamina[fielderId] ?? 100) - 6);
@@ -837,6 +892,19 @@ export default function MatchPage() {
       }
       else if (g.currentPlayType === "GROUND_BALL") {
         if ((fdist < 20 && g.ball.z < 15) || g.timer > 58) {
+          const fielderPlayer = getFielderPlayer(closestFielder.pos);
+          const fldScore = fielderPlayer?.fielding ?? 60;
+          const isTired = fielderPlayer ? (g.stamina[fielderPlayer.id] ?? 100) < 35 : false;
+
+          // ★ ゴロ捕球エラー（ファンブル・後逸）判定
+          if (checkFieldingError(fldScore, isTired)) {
+            if (!g.isTop) g.myErrors++;
+            else g.oppErrors++;
+            setBanner({ text: "FIELDING ERROR! 痛恨のファンブル!", color: "#e11d48" });
+            executeAtBatResult(g, "SINGLE", `野手・${fielderPlayer?.name || closestFielder.pos}が打球をファンブル！ 失策によりセーフ！`, currentBatter);
+            return;
+          }
+
           closestFielder.hasBall = true;
           g.timer = 0;
           g.ball.x = closestFielder.x;
@@ -1251,6 +1319,11 @@ export default function MatchPage() {
       if (g.strikes >= 3) {
         playSe("out");
         g.outs++;
+
+        // ★【バグ修正⑤】三振成立時にカウントを即座にリセット！
+        g.strikes = 0;
+        g.balls = 0;
+
         if (g.isTop && currentBatter) {
           g.stamina[currentBatter.id] = Math.max(5, (g.stamina[currentBatter.id] ?? 100) - 10);
         }
@@ -1491,7 +1564,6 @@ export default function MatchPage() {
     }
 
     const grownList: MatchGrowthPlayer[] = [];
-
     const baseTeam = baseTeamRef.current || team;
 
     if (baseTeam) {
@@ -1555,6 +1627,7 @@ export default function MatchPage() {
         let isSeasonEnd = false;
         let transitionMsg = "";
         let hasWonSummer = baseTeam.has_won_summer || false;
+        let hasLostSummer = baseTeam.has_lost_summer || false;
         let hasWonAutumn = baseTeam.has_won_autumn || false;
 
         if (currentSeason === "SPRING") {
@@ -1564,22 +1637,36 @@ export default function MatchPage() {
             nextSeason = "SUMMER";
             nextRound = 1;
             hasWonSummer = false;
+            hasLostSummer = false;
             transitionMsg = "【春季プレシーズン全4試合完走！ 夏の全国大学トーナメントへ進出！】";
           }
         } else if (currentSeason === "SUMMER") {
+          // ★【改善③】夏のトーナメント勝敗分岐
           if (currentRnd === 1) {
             nextRound = 2;
+            if (resultType !== "WIN") {
+              hasLostSummer = true;
+              transitionMsg = "【1回戦惜敗… 5〜8位決定戦（敗者復活戦）へ！】";
+            } else {
+              transitionMsg = "【1回戦突破！ 全国準決勝へ進出！】";
+            }
           } else if (currentRnd === 2) {
             nextRound = 3;
+            if (resultType !== "WIN") {
+              hasLostSummer = true;
+              transitionMsg = hasLostSummer ? "【敗者戦惜敗… 7位決定戦へ！】" : "【準決勝惜敗… 3位決定戦へ！】";
+            } else {
+              transitionMsg = hasLostSummer ? "【敗者復活戦勝利！ 5位決定戦へ進出！】" : "【準決勝勝利！ 全国決勝戦へ進出！】";
+            }
           } else if (currentRnd === 3) {
-            if (resultType === "WIN") {
+            if (resultType === "WIN" && !hasLostSummer) {
               nextRound = 4;
               hasWonSummer = true;
-              transitionMsg = "【全国大学トーナメント優勝！ 特別試合【アジア大学選手権】へ進出！】";
+              transitionMsg = "【全国大学トーナメント完全制覇！ 特別試合【アジア大学選手権】へ進出！】";
             } else {
               nextSeason = "AUTUMN";
               nextRound = 1;
-              transitionMsg = "【夏のトーナメント終了！ 秋の大学公式リーグへ！】";
+              transitionMsg = hasLostSummer ? "【夏の順位決定戦全日程終了！ 秋の大学公式リーグへ！】" : "【夏の全国トーナメント準優勝！ 秋の大学公式リーグへ！】";
             }
           } else if (currentRnd >= 4) {
             nextSeason = "AUTUMN";
@@ -1607,14 +1694,15 @@ export default function MatchPage() {
               transitionMsg = "【秋季公式リーグ制覇！ 優勝特典【日米親善大学野球・全米カレッジ選抜戦】へ進出！】";
             } else {
               isSeasonEnd = true;
-              transitionMsg = "【秋の大学公式リーグ全日程終了！ 4年生引退・新歓ドラフトへ】";
+              transitionMsg = "【秋の大学公式リーグ全日程終了！ 4年生卒業式 ＆ 新歓ドラフトへ】";
             }
           } else if (currentRnd >= 8) {
             isSeasonEnd = true;
-            transitionMsg = "【日米親善大学野球 激闘終了！ 4年生引退・新歓ドラフトへ】";
+            transitionMsg = "【日米親善大学野球 激闘終了！ 4年生卒業式 ＆ 新歓ドラフトへ】";
           }
         }
 
+        // シーズン終了時の世代交代処理
         if (isSeasonEnd) {
           const oppIds = new Set<number>();
           let currentOppTeams = OPPONENT_UNIVERSITIES;
@@ -1640,6 +1728,7 @@ export default function MatchPage() {
           graduatedTeam.current_season = "SPRING";
           graduatedTeam.current_round = 1;
           graduatedTeam.has_won_summer = false;
+          graduatedTeam.has_lost_summer = false;
           graduatedTeam.has_won_autumn = false;
 
           localStorage.setItem("bb6_myTeam", JSON.stringify(graduatedTeam));
@@ -1669,6 +1758,7 @@ export default function MatchPage() {
           current_season: nextSeason,
           current_round: nextRound,
           has_won_summer: hasWonSummer,
+          has_lost_summer: hasLostSummer,
           has_won_autumn: hasWonAutumn,
           players: updatedPlayers,
         };
@@ -1854,7 +1944,6 @@ export default function MatchPage() {
     router.push("/");
   };
 
-  // ★ 2代目以降のエンドレスエース指名実行
   const handleConfirmSuccessor = () => {
     if (!selectedSuccessorId || !baseTeamRef.current) return;
     assignNextProtagonist(baseTeamRef.current, selectedSuccessorId);
@@ -1958,6 +2047,11 @@ export default function MatchPage() {
     }
     if (currentSeason === "SUMMER") {
       if (team.current_round === 4 || team.has_won_summer) return "アジア大学選手権 (国際親善試合) / 5イニング制";
+      if (team.has_lost_summer) {
+        return team.current_round === 2 
+          ? "全国大学トーナメント 敗者復活戦（5〜8位決定戦） / 5イニング制" 
+          : "全国大学トーナメント 5位決定戦 / 5イニング制";
+      }
       const rounds = ["1回戦", "準決勝", "決勝戦"];
       return `全国大学トーナメント ${rounds[team.current_round - 1] || `${team.current_round}回戦`} / 5イニング制`;
     }
@@ -1971,10 +2065,9 @@ export default function MatchPage() {
   const protagonist = activeBaseTeam.players.find((p) => p.is_protagonist) || activeBaseTeam.players[0];
   const remainingUnderclassmen = activeBaseTeam.players.filter((p) => (p.grade ?? 1) <= 3);
 
-  // ★ 動的カウンターの計算
   const currentGen = (activeBaseTeam as any).ace_generation || 1;
   const nextGen = currentGen + 1;
-  const nextYear = activeBaseTeam.current_year; // 世代交代処理直後なので既に新年度
+  const nextYear = activeBaseTeam.current_year;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 p-3 md:p-6 font-sans select-none relative overflow-hidden">
@@ -2020,7 +2113,7 @@ export default function MatchPage() {
           </div>
         </div>
 
-        {/* スコアボード */}
+        {/* スコアボード（R, H, E対応） */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-3 shadow-sm overflow-x-auto">
           <table className="w-full text-center border-collapse text-xs">
             <thead>
@@ -2043,6 +2136,7 @@ export default function MatchPage() {
                 })}
                 <th className="w-12 font-black text-slate-900">R</th>
                 <th className="w-10 font-black text-slate-800">H</th>
+                <th className="w-10 font-black text-rose-700">E</th>
               </tr>
             </thead>
             <tbody className="font-mono text-sm">
@@ -2069,6 +2163,7 @@ export default function MatchPage() {
                 })}
                 <td className="font-black text-amber-800 bg-amber-50">{myTotal}</td>
                 <td className="font-black text-slate-800">{displayState.myHits}</td>
+                <td className={`font-black ${displayState.myErrors > 0 ? "text-rose-600 font-black" : "text-slate-400"}`}>{displayState.myErrors}</td>
               </tr>
               <tr>
                 <td className="py-1.5 px-3 text-left font-black text-slate-900 flex items-center gap-2">
@@ -2102,6 +2197,7 @@ export default function MatchPage() {
                 })}
                 <td className="font-black text-slate-900 bg-slate-100">{oppTotal}</td>
                 <td className="font-black text-slate-800">{displayState.oppHits}</td>
+                <td className={`font-black ${displayState.oppErrors > 0 ? "text-rose-600 font-black" : "text-slate-400"}`}>{displayState.oppErrors}</td>
               </tr>
             </tbody>
           </table>
@@ -2220,8 +2316,17 @@ export default function MatchPage() {
                 </div>
               </div>
 
-              {/* グラウンドコンテナ */}
-              <div className="relative w-full max-w-[540px] aspect-[540/440] rounded-2xl overflow-hidden border border-slate-200 shadow-inner">
+              {/* ★【機能改善④】グラウンドコンテナ（タップでポーズ解除・試合再開） */}
+              <div 
+                onClick={() => {
+                  if (isPaused) {
+                    setIsPaused(false);
+                  }
+                }}
+                className={`relative w-full max-w-[540px] aspect-[540/440] rounded-2xl overflow-hidden border border-slate-200 shadow-inner ${
+                  isPaused ? "cursor-pointer" : ""
+                }`}
+              >
                 <canvas
                   ref={canvasRef}
                   width={540}
@@ -2229,13 +2334,26 @@ export default function MatchPage() {
                   className="absolute inset-0 w-full h-full pointer-events-none"
                 />
 
+                {/* ★ ポーズ中のタップ再開オーバーレイ案内 */}
+                {isPaused && (
+                  <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex flex-col items-center justify-center z-30 pointer-events-none animate-in fade-in duration-150">
+                    <div className="bg-slate-900/90 text-white px-5 py-2.5 rounded-2xl border border-white/20 shadow-2xl flex items-center gap-2">
+                      <Play size={18} className="text-amber-400" fill="currentColor" />
+                      <span className="text-xs font-black tracking-wider">作戦タイム中（タップで試合再開）</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* 野手アイコン */}
                 {entities.fielders.map((f) => {
                   const isMyFielder = !displayState.isTop;
                   return (
                     <div
                       key={f.pos}
-                      onClick={() => handleOpenPlayerCard(f.player)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenPlayerCard(f.player);
+                      }}
                       style={{
                         left: `${(f.x / 540) * 100}%`,
                         top: `${(f.y / 440) * 100}%`,
@@ -2259,7 +2377,10 @@ export default function MatchPage() {
                 {/* 打者アイコン */}
                 {entities.batter.visible && (
                   <div
-                    onClick={() => handleOpenPlayerCard(entities.batter.player)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenPlayerCard(entities.batter.player);
+                    }}
                     style={{
                       left: `${(entities.batter.x / 540) * 100}%`,
                       top: `${(entities.batter.y / 440) * 100}%`,
@@ -2292,7 +2413,10 @@ export default function MatchPage() {
                   return (
                     <div
                       key={idx}
-                      onClick={() => handleOpenPlayerCard(r.player)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenPlayerCard(r.player);
+                      }}
                       style={{
                         left: `${(r.x / 540) * 100}%`,
                         top: `${(r.y / 440) * 100}%`,
@@ -2567,7 +2691,7 @@ export default function MatchPage() {
       )}
 
       {/* 試合終了リザルトモーダル */}
-      {matchResult && !showGrandEnding && !showSuccessorModal && (
+      {matchResult && !showGraduationCeremony && !showGrandEnding && !showSuccessorModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300 select-none">
           <div className="bg-white rounded-3xl p-5 md:p-7 max-w-lg w-full shadow-2xl border border-slate-200 text-center space-y-4 max-h-[90vh] overflow-y-auto">
             
@@ -2640,75 +2764,112 @@ export default function MatchPage() {
               </div>
             )}
 
-            {/* 4年生の卒業進路報告会エリア */}
-            {matchResult.isSeasonEnd && matchResult.graduatedList && matchResult.graduatedList.length > 0 && (
-              <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-3.5 text-left space-y-2.5 animate-in fade-in">
-                <div className="flex items-center justify-between border-b border-amber-200/80 pb-1.5">
-                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-950">
-                    <GraduationCap size={16} className="text-amber-600" />
-                    第{activeBaseTeam.current_year}期生 卒業式 ＆ 進路報告会（{matchResult.graduatedList.length}名）
-                  </div>
-                  <span className="text-[10px] text-amber-800 font-bold bg-white/80 px-2 py-0.5 rounded-full border border-amber-200">
-                    4年生引退
-                  </span>
-                </div>
-
-                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                  {matchResult.graduatedList.map((gp) => (
-                    <div key={gp.id} className="bg-white/90 rounded-xl p-2.5 border border-amber-200/70 shadow-sm space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-md bg-slate-900 text-white font-mono text-[9px] font-black flex items-center justify-center">
-                            {gp.main_position}
-                          </span>
-                          <span className="font-black text-xs text-slate-900">{gp.name}</span>
-                          {gp.is_protagonist && (
-                            <span className="bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.2 rounded">
-                              エース
-                            </span>
-                          )}
-                        </div>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full shadow-sm ${gp.career.badge}`}>
-                          {gp.career.title}
-                        </span>
-                      </div>
-                      
-                      <p className="text-[10px] text-slate-600 font-medium leading-relaxed pl-1">
-                        {gp.career.desc}
-                      </p>
-
-                      <div className="bg-amber-50/80 rounded-lg p-2 text-[10px] font-bold text-amber-950 border border-amber-200/50 leading-relaxed">
-                        「{gp.career.lastMessage}」
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="bg-amber-50 border border-amber-300 rounded-xl p-2.5 flex items-center justify-between text-xs font-bold text-amber-950">
               <span>獲得部費ボーナス:</span>
               <span className="font-mono text-sm text-amber-800 font-black">+{matchResult.earnedTp} 万円</span>
             </div>
 
+            {/* ★【機能改善⑧】秋終了時は必ず卒業式モーダルへ進む */}
             <button
               onClick={() => {
-                if (matchResult.isProtagonistGraduating) {
-                  setShowGrandEnding(true);
-                } else if (matchResult.isSeasonEnd) {
-                  router.push("/scout-spring");
+                if (matchResult.isSeasonEnd) {
+                  setShowGraduationCeremony(true);
                 } else {
                   handleReturnClubhouse();
                 }
               }}
               className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-3.5 rounded-2xl shadow-lg transition active:scale-95 text-xs block text-center"
             >
-              {matchResult.isProtagonistGraduating
-                ? "★ 主人公卒業セレモニー ＆ グランドエンディングへ"
-                : matchResult.isSeasonEnd
-                ? "シーズン表彰式 ＆ 新入生ドラフトへ"
+              {matchResult.isSeasonEnd
+                ? `🌸 第${activeBaseTeam.current_year}期生 卒業証書授与式 ＆ 進路報告会へ`
                 : "クラブハウスへ帰還する（次戦へ）"}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* ★【機能改善⑧】第◯期生 卒業証書授与式 ＆ 進路報告会モーダル */}
+      {/* ============================================================== */}
+      {showGraduationCeremony && matchResult?.graduatedList && (
+        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-300">
+          <div className="max-w-2xl w-full bg-white rounded-3xl p-6 md:p-8 shadow-2xl border border-slate-200 space-y-5 text-center max-h-[92vh] flex flex-col justify-between">
+            
+            <div className="space-y-1.5 border-b border-slate-100 pb-3">
+              <div className="inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-100 to-orange-100 text-amber-950 border border-amber-300 px-3.5 py-1 rounded-full text-xs font-black">
+                <GraduationCap size={16} className="text-amber-700" />
+                青葉女子大学野球部 卒業式 ＆ 進路報告会
+              </div>
+              <h2 className="text-xl md:text-2xl font-black text-slate-900">
+                第{activeBaseTeam.current_year}期生 4年生引退（{matchResult.graduatedList.length}名）
+              </h2>
+              <p className="text-xs text-slate-600 font-bold">
+                チームを支え抜いた4年生たちがそれぞれの道へ羽ばたきます
+              </p>
+            </div>
+
+            <div className="space-y-3 overflow-y-auto pr-1 py-1 flex-1 text-left">
+              {matchResult.graduatedList.map((gp) => (
+                <div key={gp.id} className="bg-slate-50 rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="relative w-11 h-11 rounded-full overflow-hidden bg-slate-800 border border-slate-300 shadow shrink-0">
+                        <img src={getPlayerAvatarUrl(gp)} alt={gp.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-sm text-slate-900">{gp.name}</span>
+                          <span className="bg-slate-900 text-white text-[9px] font-mono font-black px-1.5 py-0.2 rounded">
+                            {gp.main_position}
+                          </span>
+                          {gp.is_protagonist && (
+                            <span className="bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.2 rounded shadow-sm">
+                              エース
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-bold">
+                          総合能力評価: {gp.career.statRating}
+                        </span>
+                      </div>
+                    </div>
+                    <span className={`text-[10px] px-2.5 py-1 rounded-full shadow-sm ${gp.career.badge}`}>
+                      {gp.career.title}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 font-medium pl-1 leading-relaxed">
+                    {gp.career.desc}
+                  </p>
+
+                  <div className="bg-white rounded-xl p-2.5 text-[11px] font-bold text-slate-800 border border-slate-200/80 leading-relaxed shadow-inner">
+                    「{gp.career.lastMessage}」
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={() => {
+                  setShowGraduationCeremony(false);
+                  if (matchResult.isProtagonistGraduating) {
+                    setShowGrandEnding(true);
+                  } else {
+                    router.push("/scout-spring");
+                  }
+                }}
+                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-4 rounded-2xl shadow-xl transition active:scale-95 text-xs md:text-sm flex items-center justify-center gap-2"
+              >
+                <span>
+                  {matchResult.isProtagonistGraduating
+                    ? "★ 主人公引退セレモニー ＆ グランドエンディングへ"
+                    : `卒業生を見送る（第${nextYear}期生 新歓ドラフトへ）`}
+                </span>
+                <ArrowRight size={16} />
+              </button>
+            </div>
+
           </div>
         </div>
       )}
@@ -2736,7 +2897,6 @@ export default function MatchPage() {
               <h2 className="text-2xl md:text-3xl font-black text-amber-400 drop-shadow">
                 {protagonist.name}
               </h2>
-              {/* ★ 初代・2代目などの代数を動的表示 */}
               <span className="text-xs text-slate-300 font-mono font-bold mt-1">
                 青葉女子大学野球部 {currentGen === 1 ? "初代" : `${currentGen}代目`}エース投手
               </span>
@@ -2774,7 +2934,6 @@ export default function MatchPage() {
                 }}
                 className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-2xl shadow-xl transition active:scale-95 text-xs md:text-sm flex items-center justify-center gap-2"
               >
-                {/* ★ 次の代数・期生を動的表示 */}
                 <span>名誉監督として続投（{nextGen}代目新エース指名へ）</span>
                 <ArrowRight size={16} />
               </button>
@@ -2796,7 +2955,7 @@ export default function MatchPage() {
 
       {/* ★ エンドレスエース指名会議モーダル */}
       {showSuccessorModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-300">
           <div className="max-w-xl w-full bg-white rounded-3xl p-6 md:p-8 shadow-2xl border border-slate-200 space-y-5 text-center">
             
             <div className="space-y-1">
@@ -2846,7 +3005,6 @@ export default function MatchPage() {
               disabled={!selectedSuccessorId}
               className="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white font-black py-4 rounded-2xl shadow-xl transition active:scale-95 text-sm flex items-center justify-center gap-2"
             >
-              {/* ★ 何年目でも崩れない動的ボタンテキスト */}
               <span>この選手を{nextGen}代目エースに指名して第{nextYear}期生へ</span>
               <ArrowRight size={16} />
             </button>

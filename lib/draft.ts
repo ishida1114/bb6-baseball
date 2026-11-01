@@ -5,7 +5,7 @@ import { OPPONENT_UNIVERSITIES, initLeagueData } from "@/lib/league";
 
 // スカウト・ドラフト候補から完全に除外する特別チーム選手IDのブラックリスト
 export const EXCLUDED_DRAFT_IDS = new Set<number>([
-  246, 247, 248, 249, 250, 251, 252, 253, 254, 255, // アジア大学選抜
+  246, 247, 248, 249, 250, 251, 252, 253, 254, 255, // アジア大学選抜（1年目のみ除外、2年目以降は合流）
   256, 257, 258, 259, 260, 261, 262, 263, 264, 265, // 全米カレッジ選抜
   ...Array.from({ length: 50 }, (_, i) => 800 + i),   // 実業団・社会人選抜
 ]);
@@ -325,7 +325,6 @@ export async function advanceOpponentsSeason(currentMyTeam: UserTeam): Promise<L
   retainedOppTeams.forEach((team) => {
     let currUniques = team.players.filter(hasUniqueImage).length;
     
-    // 固有顔選手が少なければ優先補充
     while (team.players.length < 10 && currUniques < 2 && uniqueRookies.length > 0) {
       const rookie = uniqueRookies.pop()!;
       team.players.push({ ...rookie, grade: 1 });
@@ -333,7 +332,6 @@ export async function advanceOpponentsSeason(currentMyTeam: UserTeam): Promise<L
       currUniques++;
     }
 
-    // 汎用ルーキー補充
     while (team.players.length < 10 && genericRookies.length > 0) {
       const rookie = genericRookies.pop()!;
       team.players.push({ ...rookie, grade: 1 });
@@ -346,7 +344,6 @@ export async function advanceOpponentsSeason(currentMyTeam: UserTeam): Promise<L
       occupiedIds.add(rookie.id);
     }
 
-    // 投手（P）保証
     const hasP = team.players.some((p) => p.main_position === "P");
     if (!hasP) {
       const pCand = freeRookiePool.find(
@@ -358,7 +355,6 @@ export async function advanceOpponentsSeason(currentMyTeam: UserTeam): Promise<L
       }
     }
 
-    // 新オーダー再構築
     team.order = generateTeamOrder(team.players);
   });
 
@@ -369,12 +365,18 @@ export async function advanceOpponentsSeason(currentMyTeam: UserTeam): Promise<L
   return retainedOppTeams;
 }
 
+/**
+ * ★【春の新入部員スカウト候補生成】
+ * ・未所属の固定画像選手を「全員」最優先で候補リストに選出
+ * ・2年目以降はアジア選抜（ID 246〜255）の除外を解除し、候補プールへ完全合流
+ * ・ランダム生成キャラ（9101〜）による枠圧迫を防止
+ */
 export async function generateDraftCandidates(
   team: UserTeam,
   oppPlayerIds: Set<number>,
   cachedPool?: Player[]
 ): Promise<Player[]> {
-  let pool = cachedPool;
+  let pool = cachedPool ? [...cachedPool] : [];
 
   if (!pool || pool.length === 0) {
     const { data, error } = await supabase
@@ -389,42 +391,70 @@ export async function generateDraftCandidates(
     }
   }
 
-  const fullPool = (pool || []).filter((p) => !EXCLUDED_DRAFT_IDS.has(p.id));
+  // ★ 2年目以降ならアジア選抜10名（ID 246〜255）を候補プールへ合流！
+  const isSecondYearOrLater = (team.current_year ?? 1) >= 2;
+  if (isSecondYearOrLater) {
+    ASIA_PLAYERS.forEach((ap) => {
+      if (!pool.some((p) => p.id === ap.id)) {
+        pool.push(ap);
+      }
+    });
+  }
+
+  // 除外IDセットの生成（2年目以降はアジア選手を除外リストから解除）
+  const excludedIds = new Set<number>();
+  EXCLUDED_DRAFT_IDS.forEach((id) => {
+    if (isSecondYearOrLater && id >= 246 && id <= 255) {
+      return; // 2年目以降はアジア選手を除外しない（合流！）
+    }
+    excludedIds.add(id);
+  });
 
   const currentTeamIds = new Set(team.players.map((p) => p.id));
   const cooldownIds = new Set(((team as any).cooldowns || []).map((c: CooldownPlayer) => c.playerId));
 
-  const availablePool = fullPool.filter(
-    (p) => !currentTeamIds.has(p.id) && !cooldownIds.has(p.id) && !oppPlayerIds.has(p.id)
+  // 未所属かつ指名可能な候補プール
+  const availablePool = pool.filter(
+    (p) => !excludedIds.has(p.id) && !currentTeamIds.has(p.id) && !cooldownIds.has(p.id) && !oppPlayerIds.has(p.id)
   );
 
   const shuffle = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
-  const shuffled = shuffle(availablePool);
 
-  const currentPitcherCount = team.players.filter((p) => p.main_position === "P").length;
-  const needPitcherGuarantee = currentPitcherCount <= 1;
+  // 固有画像選手と汎用選手に分離
+  const uniquePool = shuffle(availablePool.filter((p) => hasUniqueImage(p)));
+  const genericPool = shuffle(availablePool.filter((p) => !hasUniqueImage(p)));
 
   const candidates: Player[] = [];
 
-  if (needPitcherGuarantee) {
-    const pIdx = shuffled.findIndex((p) => p.main_position === "P");
-    if (pIdx !== -1) {
-      candidates.push({ ...shuffled[pIdx], grade: 1 });
-      shuffled.splice(pIdx, 1);
+  // ★ 未所属の固定画像選手を「全員」最優先で候補リストへ登録！
+  uniquePool.forEach((p) => {
+    candidates.push({ ...p, grade: 1 });
+  });
+
+  // 固定画像選手だけで最低候補数（最低6名）に満たない場合は汎用選手で補填
+  const minCandidates = 6;
+  while (candidates.length < minCandidates && genericPool.length > 0) {
+    candidates.push({ ...genericPool.shift()!, grade: 1 });
+  }
+
+  // 投手保証チェック（青葉の投手が1名以下で、候補リストに投手がいない場合）
+  const currentPitcherCount = team.players.filter((p) => p.main_position === "P").length;
+  const hasPitcherCandidate = candidates.some((c) => c.main_position === "P");
+
+  if (currentPitcherCount <= 1 && !hasPitcherCandidate) {
+    const pCand = genericPool.find((p) => p.main_position === "P");
+    if (pCand) {
+      candidates.unshift({ ...pCand, grade: 1 });
     }
   }
 
-  while (candidates.length < 5 && shuffled.length > 0) {
-    candidates.push({ ...shuffled.shift()!, grade: 1 });
-  }
-
+  // それでも枠が不足する場合のセーフティネット（極限フォールバック）
   let fallbackId = 9101;
-  while (candidates.length < 5) {
-    const needP = !candidates.some((c) => c.main_position === "P") && currentPitcherCount === 0;
+  while (candidates.length < 4) {
     candidates.push({
       id: fallbackId++,
       name: `一般入試・新人${candidates.length + 1}`,
-      main_position: needP ? "P" : "1B",
+      main_position: "1B",
       pitch_speed: 68,
       control: 62,
       contact: 62,

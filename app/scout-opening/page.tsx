@@ -7,6 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { Player, PositionType } from "@/types/baseball";
 import { OPPONENT_UNIVERSITIES } from "@/lib/league";
 import { hasUniqueImage, finalizeOpeningScout, EXCLUDED_DRAFT_IDS } from "@/lib/draft";
+import SoundToggle from "@/components/SoundToggle";
+import { playBgm, playSe } from "@/lib/sound";
 import { Check, Users, Sparkles, ChevronRight, X, Shield, ArrowRight, Trophy } from "lucide-react";
 
 interface ScoutAttemptResult {
@@ -39,6 +41,9 @@ export default function ScoutOpeningPage() {
   const neededCount = 10 - joinedPlayers.length;
 
   useEffect(() => {
+    // ★ オープニングBGMを確実に再生
+    playBgm("opening");
+
     async function loadCandidates() {
       setLoading(true);
 
@@ -113,9 +118,11 @@ export default function ScoutOpeningPage() {
   // チェックボックスのON/OFF
   const toggleSelect = (id: number) => {
     if (selectedIds.includes(id)) {
+      playSe("meet");
       setSelectedIds(selectedIds.filter((item) => item !== id));
     } else {
       if (selectedIds.length < neededCount) {
+        playSe("meet");
         setSelectedIds([...selectedIds, id]);
       }
     }
@@ -159,12 +166,25 @@ export default function ScoutOpeningPage() {
 
     setNegotiationQueue(results);
     setCurrentIndex(0); // 1人目のカードを立ち上げる
+
+    // 1人目の成否音
+    if (results[0]?.isSuccess) {
+      playSe("playball");
+    } else {
+      playSe("out");
+    }
   };
 
   // 「次の返事を見る」ボタン
   const handleNextCard = () => {
     if (currentIndex < negotiationQueue.length - 1) {
-      setCurrentIndex(currentIndex + 1);
+      const nextIdx = currentIndex + 1;
+      setCurrentIndex(nextIdx);
+      if (negotiationQueue[nextIdx]?.isSuccess) {
+        playSe("playball");
+      } else {
+        playSe("out");
+      }
     } else {
       // 全員の回答演出が終了したときの結果集計
       const successfulPlayers: Player[] = [];
@@ -198,6 +218,7 @@ export default function ScoutOpeningPage() {
   // 10名達成で本編（クラブハウス）へ
   const handleFinishScout = async () => {
     setIsFinishing(true);
+    playSe("gameset");
     try {
       await finalizeOpeningScout(joinedPlayers, rejectedMap);
       router.push("/");
@@ -248,12 +269,16 @@ export default function ScoutOpeningPage() {
             </p>
           </div>
 
-          {/* 現在の獲得状況プログレス */}
-          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-4 py-2 rounded-2xl">
-            <Users size={16} className="text-amber-600" />
-            <div className="text-xs font-bold text-slate-700">
-              獲得メンバー: <span className="text-base font-black text-amber-700 font-mono">{joinedPlayers.length}</span> / 10名
+          {/* 現在の獲得状況プログレス ＆ 音量ボタン */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 px-4 py-2 rounded-2xl">
+              <Users size={16} className="text-amber-600" />
+              <div className="text-xs font-bold text-slate-700">
+                獲得メンバー: <span className="text-base font-black text-amber-700 font-mono">{joinedPlayers.length}</span> / 10名
+              </div>
             </div>
+
+            <SoundToggle className="bg-slate-50 border-slate-200 text-slate-800" />
           </div>
         </div>
       </div>

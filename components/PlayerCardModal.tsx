@@ -2,7 +2,7 @@
 "use client";
 
 import React from "react";
-import { Player, PositionType } from "@/types/baseball";
+import { Player, PositionType, getSkillDef } from "@/types/baseball";
 import { X, Shield, Zap, Award, Gauge, Sparkles } from "lucide-react";
 
 interface PlayerCardModalProps {
@@ -311,6 +311,54 @@ export default function PlayerCardModal({ player, onClose }: PlayerCardModalProp
                   {player.stamina ?? 50}
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* ★ 習得スキル・特殊能力 */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs font-black text-slate-900">
+              <div className="flex items-center gap-1.5">
+                <Sparkles size={14} className="text-amber-500" />
+                <span>習得スキル・特殊能力</span>
+              </div>
+              {player.skills && player.skills.length > 0 && (
+                <span className="text-[10px] font-mono text-slate-500 font-bold">
+                  {player.skills.length}個習得中
+                </span>
+              )}
+            </div>
+
+            <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl min-h-[46px] flex flex-wrap items-center gap-1.5">
+              {player.skills && player.skills.length > 0 ? (
+                player.skills.map((sId) => {
+                  const def = getSkillDef(sId);
+                  const name = def?.name || sId;
+                  const desc = def?.desc || "習得済みの特殊能力";
+                  const badgeBg = def?.badgeBg || "bg-amber-50";
+                  const borderColor = def?.borderColor || "border-amber-300";
+                  const textColor = def?.textColor || "text-amber-900";
+                  const tier = def?.tier;
+
+                  return (
+                    <div
+                      key={sId}
+                      title={desc}
+                      className={`px-2.5 py-1 rounded-xl border text-xs font-black flex items-center gap-1 shadow-sm transition hover:scale-105 cursor-help ${badgeBg} ${borderColor} ${textColor}`}
+                    >
+                      <span>{name}</span>
+                      {tier && tier >= 2 && (
+                        <span className="text-[9px] font-mono font-black opacity-80">
+                          T{tier}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <span className="text-[11px] text-slate-400 font-medium pl-1">
+                  習得スキルなし（全体練習や特訓合宿で習得可能）
+                </span>
+              )}
             </div>
           </div>
 
