@@ -1,10 +1,12 @@
 // app/character-create/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Player } from "@/types/baseball";
-import { Dices, Check, ChevronRight, Sparkles, Flame, Shield, Zap } from "lucide-react";
+import SoundToggle from "@/components/SoundToggle";
+import { playBgm, playSe } from "@/lib/sound";
+import { Dices, Check, ChevronRight, Sparkles, BookOpen, ArrowRight, SkipForward } from "lucide-react";
 
 interface ProtagonistTemplate {
   id: number;
@@ -112,8 +114,17 @@ export default function CharacterCreatePage() {
 
   const [isRolling, setIsRolling] = useState(false);
 
+  // ★ オープニングストーリーモーダル表示フラグ
+  const [showStoryModal, setShowStoryModal] = useState(false);
+
+  useEffect(() => {
+    // 画面突入時にオープニングBGMを再生
+    playBgm("opening");
+  }, []);
+
   // タイプ切り替え時に名前も同期
   const handleSelectType = (idx: number) => {
+    playSe("ball");
     setSelectedIdx(idx);
     setName(TEMPLATES[idx].defaultName);
     rollDice();
@@ -121,6 +132,7 @@ export default function CharacterCreatePage() {
 
   // ダイスを振って ±7 をランダム決定
   const rollDice = () => {
+    playSe("meet");
     setIsRolling(true);
     setTimeout(() => {
       const getRnd = () => Math.floor(Math.random() * 15) - 7; // -7 〜 +7
@@ -148,8 +160,10 @@ export default function CharacterCreatePage() {
     return Math.round(100 + spd * 0.63);
   };
 
-  // 主人公を確定してスカウト会議へ
+  // 主人公を確定してストーリーモーダルを開く
   const handleConfirm = () => {
+    playSe("meet");
+
     const protagonist: Player = {
       id: currentTemplate.id,
       name: name.trim() || currentTemplate.defaultName,
@@ -167,26 +181,37 @@ export default function CharacterCreatePage() {
       is_protagonist: true,
     };
 
-    // 一時セッションに保存してスカウト画面へ引き渡す
+    // 一時セッションに保存
     localStorage.setItem("bb6_custom_protagonist", JSON.stringify(protagonist));
+    setShowStoryModal(true);
+  };
+
+  // ストーリー完了 ➔ スカウト画面へ
+  const handleProceedToScout = () => {
+    playSe("playball");
+    setShowStoryModal(false);
     router.push("/scout-opening");
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 font-sans select-none p-4 md:p-8">
+    <div className="min-h-screen bg-slate-100 text-slate-900 font-sans select-none p-4 md:p-8 relative">
       <div className="max-w-4xl mx-auto space-y-6">
         
         {/* ヘッダー */}
-        <div className="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm text-center">
-          <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-900 border border-amber-200 text-xs font-black px-3 py-1 rounded-full mb-1.5">
-            <Sparkles size={14} className="text-amber-600" /> 入学手続き・選手登録
+        <div className="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div className="text-left">
+            <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-900 border border-amber-200 text-xs font-black px-3 py-1 rounded-full mb-1.5">
+              <Sparkles size={14} className="text-amber-600" /> 入学手続き・選手登録
+            </div>
+            <h1 className="text-2xl md:text-3xl font-black text-slate-900">
+              青葉女子大学 新入生エース（あなた）の作成
+            </h1>
+            <p className="text-xs text-slate-600 font-bold mt-1">
+              プレイスタイルに合わせたバックボーンを選択し、能力値をダイスで決定してください。
+            </p>
           </div>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900">
-            青葉女子大学 新入生エース（あなた）の作成
-          </h1>
-          <p className="text-xs text-slate-600 font-bold mt-1">
-            プレイスタイルに合わせたバックボーンを選択し、能力値をダイスで決定してください。
-          </p>
+
+          <SoundToggle className="bg-slate-50 border-slate-200 text-slate-800" />
         </div>
 
         {/* 3人の選択カード */}
@@ -252,7 +277,7 @@ export default function CharacterCreatePage() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setBattingHand("R")}
+                  onClick={() => { playSe("ball"); setBattingHand("R"); }}
                   className={`py-2 rounded-xl text-xs font-black border transition ${
                     battingHand === "R"
                       ? "bg-slate-900 text-white border-slate-900 shadow"
@@ -263,7 +288,7 @@ export default function CharacterCreatePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setBattingHand("L")}
+                  onClick={() => { playSe("ball"); setBattingHand("L"); }}
                   className={`py-2 rounded-xl text-xs font-black border transition ${
                     battingHand === "L"
                       ? "bg-slate-900 text-white border-slate-900 shadow"
@@ -341,6 +366,82 @@ export default function CharacterCreatePage() {
         </button>
 
       </div>
+
+      {/* ============================================================== */}
+      {/* ★【オープニングストーリー】シネマティック・プロローグモーダル */}
+      {/* ============================================================== */}
+      {showStoryModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-500">
+          <div className="max-w-2xl w-full bg-slate-900 border-2 border-amber-400/80 rounded-3xl p-6 md:p-8 text-white space-y-6 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
+            
+            {/* 上部バー */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="bg-amber-500 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full">
+                  PROLOGUE
+                </span>
+                <span className="text-xs font-black text-slate-300 flex items-center gap-1.5">
+                  <BookOpen size={14} className="text-amber-400" />
+                  新時代のプレイボール
+                </span>
+              </div>
+              <button
+                onClick={handleProceedToScout}
+                className="text-slate-400 hover:text-white text-xs font-bold flex items-center gap-1 transition"
+                title="ストーリーをスキップしてスカウトへ"
+              >
+                <span>スキップ</span>
+                <SkipForward size={14} />
+              </button>
+            </div>
+
+            {/* 本物のオープニングストーリー本文 */}
+            <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-5 md:p-6 space-y-4 text-xs md:text-sm font-medium leading-relaxed text-slate-300 shadow-inner max-h-[60vh] overflow-y-auto">
+              <p>
+                202X年、米国——。<br />
+                ジェンダー平等への世界的要請とスポーツ興行の大ブームを受け、<br />
+                全米女子6人制野球プロリーグ「W6B」の設立が電撃発表された。
+              </p>
+
+              <p>
+                その波は即座に太平洋を越え、日本球界をも揺るがす。<br />
+                少子化と定員割れに喘ぐ全国の女子大学に対し、<br />
+                国は「次世代女子スポーツ振興助成金」を新設。<br />
+                生き残りを懸けた各大学が、こぞって新鋭チームの創部へ名乗りを上げた。
+              </p>
+
+              <p>
+                そしてここ、緑あふれる青葉女子大学キャンパス。<br />
+                グラウンドの片隅で、一人の新入生がボールを握りしめていた。
+              </p>
+
+              <div className="py-2 text-center">
+                <p className="text-sm md:text-base font-black text-amber-400 tracking-wider">
+                  「誰もやらないなら、私が立ち上げるしかない——」
+                </p>
+              </div>
+
+              <p>
+                伝統校のプライドと、新時代のビッグウェーブが交錯するインカレ1部リーグ。<br />
+                青葉女子大学女子野球部、ここにプレイボール。
+              </p>
+            </div>
+
+            {/* 出陣ボタン */}
+            <div className="pt-2">
+              <button
+                onClick={handleProceedToScout}
+                className="w-full bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black py-4 rounded-2xl shadow-xl transition flex items-center justify-center gap-2 text-sm md:text-base"
+              >
+                <span>新歓スカウト会議へ出陣（プレイボール！）</span>
+                <ArrowRight size={18} />
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
