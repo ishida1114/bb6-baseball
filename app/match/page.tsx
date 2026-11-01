@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Player, UserTeam, PositionType, LeagueTeam, TeamOrder, SeasonPhase, PersonalityType } from "@/types/baseball";
+import { Player, UserTeam, PositionType, LeagueTeam, TeamOrder, SeasonPhase, PersonalityType, BgmType } from "@/types/baseball";
 import { recordRoundResults, resetLeagueForNewSeason, growOpponentTeams, OPPONENT_UNIVERSITIES, loadLeagueData } from "@/lib/league";
 import { processYearEndGraduation, GraduatedPlayerWithCareer, assignNextProtagonist } from "@/lib/draft";
 import { 
@@ -83,16 +83,18 @@ interface MatchGrowthPlayer {
 }
 
 /**
- * 守備力に応じた失策（エラー）判定
+ * 守備力およびポジション適性に応じた失策（エラー）判定
  */
-function checkFieldingError(fldScore: number, isTired: boolean): boolean {
+function checkFieldingError(fldScore: number, isTired: boolean, aptitudePct: number = 100): boolean {
+  const effFld = fldScore * (aptitudePct / 100.0);
   let rate = 0.05;
-  if (fldScore >= 85) rate = 0.015;
-  else if (fldScore >= 70) rate = 0.03;
-  else if (fldScore >= 60) rate = 0.05;
-  else if (fldScore >= 50) rate = 0.08;
-  else if (fldScore >= 40) rate = 0.12;
-  else rate = 0.18;
+  if (effFld >= 85) rate = 0.015;
+  else if (effFld >= 70) rate = 0.03;
+  else if (effFld >= 60) rate = 0.05;
+  else if (effFld >= 50) rate = 0.08;
+  else if (effFld >= 40) rate = 0.12;
+  else if (effFld >= 30) rate = 0.18;
+  else rate = 0.25;
 
   if (isTired) rate += 0.05;
   return Math.random() < rate;
@@ -109,11 +111,7 @@ function getSeasonOpponent(team: UserTeam, savedOpponents?: LeagueTeam[]): Leagu
   if (oppList.length === 0 && typeof window !== "undefined") {
     const saved = localStorage.getItem("bb6_league_opponents");
     if (saved) {
-      try {
-        oppList = JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
+      try { oppList = JSON.parse(saved); } catch (e) {}
     }
   }
   if (oppList.length === 0) {
@@ -138,14 +136,13 @@ function getSeasonOpponent(team: UserTeam, savedOpponents?: LeagueTeam[]): Leagu
     if (rnd === 4 || team.has_won_summer) {
       return getAsiaAllStars();
     }
-    // ★ 敗退フラグに応じた対戦相手分岐
     if (!team.has_lost_summer) {
-      if (rnd === 1) return oppList[6] || oppList[0]; // 富士見
-      if (rnd === 2) return oppList[2] || oppList[1]; // 黒潮（準決勝）
-      return oppList[1] || oppList[0];                // 白百合（決勝）
+      if (rnd === 1) return oppList[6] || oppList[0];
+      if (rnd === 2) return oppList[2] || oppList[1];
+      return oppList[1] || oppList[0];
     } else {
-      if (rnd === 2) return oppList[4] || oppList[0]; // 紅蓮（敗者復活1回戦）
-      return oppList[3] || oppList[0];                // 帝都経済（5位決定戦）
+      if (rnd === 2) return oppList[4] || oppList[0];
+      return oppList[0] || oppList[3]; // 桜華学院（3位決定戦）
     }
   }
 
@@ -217,6 +214,17 @@ export default function MatchPage() {
 
   const [activeContributors, setActiveContributors] = useState<Record<number, number>>({});
 
+  // ★ ビッグマッチ勝利特別演出モーダル
+  const [specialVictory, setSpecialVictory] = useState<{
+    type: "ASIA" | "AUTUMN" | "USA";
+    title: string;
+    subTitle: string;
+    desc: string;
+    imageUrl: string;
+    rewardText: string;
+    bgm: BgmType;
+  } | null>(null);
+
   const [matchResult, setMatchResult] = useState<{
     isFinished: boolean;
     isCold: boolean;
@@ -232,7 +240,6 @@ export default function MatchPage() {
     transitionMsg?: string;
   } | null>(null);
 
-  // ★ 卒業式モーダル、大団円エンディング、新エース指名モーダル
   const [showGraduationCeremony, setShowGraduationCeremony] = useState(false);
   const [showGrandEnding, setShowGrandEnding] = useState(false);
   const [showSuccessorModal, setShowSuccessorModal] = useState(false);
@@ -310,6 +317,7 @@ export default function MatchPage() {
 
   const initNewMatch = useCallback((parsedTeam: UserTeam) => {
     setMatchResult(null);
+    setSpecialVictory(null);
     setShowGraduationCeremony(false);
     setShowGrandEnding(false);
     setShowSuccessorModal(false);
@@ -685,7 +693,7 @@ export default function MatchPage() {
         g.batter.isSwinging = Math.random() < swingProb;
       }
     }
-    // 3. SWINGING
+    // 3. SWINGING（★相対勝負判定 ＆ 特能スキル完全連携）
     else if (g.phase === "SWINGING") {
       if (g.batter.isSwinging) {
         g.batter.batAngle += isLeft ? 0.35 : -0.35;
@@ -704,19 +712,61 @@ export default function MatchPage() {
           return;
         }
 
+        // --- 相対勝負判定ロジック ---
         const batterStamina = currentBatter ? (g.stamina[currentBatter.id] ?? 100) : 100;
         const staminaTiredMod = batterStamina < 30 ? -0.18 : batterStamina < 50 ? -0.08 : 0;
 
-        const contactVal = currentBatter ? currentBatter.contact : 50;
-        const tacticMod = g.tactic === "MEET" ? 0.12 : g.tactic === "POWER" ? -0.1 : 0;
-        const meetChance = 0.68 + (contactVal - 50) * 0.003 + tacticMod + staminaTiredMod;
+        const pitcherStamina = currentPitcher ? (g.stamina[currentPitcher.id] ?? 100) : 100;
+        const pTiredSpeed = pitcherStamina < 30 ? -8 : pitcherStamina < 50 ? -3 : 0;
+        const pTiredCtrl = pitcherStamina < 30 ? -12 : pitcherStamina < 50 ? -5 : 0;
 
+        const effectivePitchSpeed = (currentPitcher?.pitch_speed ?? 60) + pTiredSpeed;
+        const effectivePitchCtrl = (currentPitcher?.control ?? 60) + pTiredCtrl;
+
+        // 打者スキル補正
+        const bSkills = currentBatter?.skills || [];
+        let skillMeetMod = 0;
+        if (bSkills.includes("contact_1")) skillMeetMod += 0.05;
+        if (bSkills.includes("contact_2")) skillMeetMod += 0.10;
+        if (bSkills.includes("contact_3")) skillMeetMod += 0.18;
+        
+        // 得点圏スキル
+        const isScoringPos = !!(g.runners.second || g.runners.third);
+        if (isScoringPos) {
+          if (bSkills.includes("clutch_1")) skillMeetMod += 0.06;
+          if (bSkills.includes("clutch_2")) skillMeetMod += 0.12;
+          if (bSkills.includes("clutch_3")) skillMeetMod += 0.20;
+        }
+
+        // 投手スキル補正
+        const pSkills = currentPitcher?.skills || [];
+        let pSkillDiff = 0;
+        if (!g.ball.isBreaking) {
+          if (pSkills.includes("fastball_1")) pSkillDiff += 4;
+          if (pSkills.includes("fastball_2")) pSkillDiff += 8;
+          if (pSkills.includes("fastball_3")) pSkillDiff += 14;
+        } else {
+          if (pSkills.includes("breaking_1")) pSkillDiff += 5;
+          if (pSkills.includes("breaking_2")) pSkillDiff += 10;
+          if (pSkills.includes("breaking_3")) pSkillDiff += 16;
+        }
+
+        // 相対レート計算
+        const pitcherRating = effectivePitchSpeed + (effectivePitchCtrl * 0.4) + pSkillDiff;
+        const batterRating = (currentBatter?.contact ?? 50) + (skillMeetMod * 50);
+        const abilityDiff = pitcherRating - batterRating;
+
+        const tacticMod = g.tactic === "MEET" ? 0.12 : g.tactic === "POWER" ? -0.1 : 0;
+        const baseMeetChance = 0.72 - (abilityDiff * 0.0055) + tacticMod + staminaTiredMod;
+        const meetChance = Math.max(0.08, Math.min(0.85, baseMeetChance));
+
+        // 空振り判定
         if (Math.random() > meetChance) {
           if (g.stealingRunner) {
             startStealThrowSequence(g);
             return;
           }
-          handlePitchCount(g, "STRIKE", "空振り！");
+          handlePitchCount(g, "STRIKE", abilityDiff > 45 ? "豪速球に手が出ず空振り！" : "空振り！");
           return;
         }
 
@@ -729,9 +779,25 @@ export default function MatchPage() {
         g.ball.isBreaking = false;
         g.impactEffect = 8; 
 
-        const hitRoll = Math.random();
+        // --- 打球種別の相対パワー配分 ---
+        let effectivePower = (currentBatter?.power ?? 50) + (g.tactic === "POWER" ? 10 : g.tactic === "MEET" ? -8 : 0);
+        if (bSkills.includes("power_1")) effectivePower += 6;
+        if (bSkills.includes("power_2")) effectivePower += 12;
+        if (bSkills.includes("power_3")) effectivePower += 20;
 
-        if (hitRoll < 0.20) {
+        const powerSuppress = Math.max(0, (effectivePitchSpeed - 50) * 0.25);
+        const powerDiff = effectivePower - powerSuppress;
+
+        const wHR = powerDiff > 40 ? Math.max(1.0, (powerDiff - 40) * 0.25) : 0.5;
+        const w2B = Math.max(3.0, (powerDiff - 20) * 0.35);
+        const wHit = 20.0;
+        const wGround = 40.0 + powerSuppress * 0.5;
+        const wFly = 20.0 + powerSuppress * 0.3;
+        const totalW = wHR + w2B + wHit + wGround + wFly;
+
+        const rollVal = Math.random() * totalW;
+
+        if (rollVal < wFly) {
           playSe("meet");
           g.currentPlayType = "POP_FLY";
           const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.8;
@@ -741,7 +807,7 @@ export default function MatchPage() {
           setBanner({ text: "POP FLY", color: "#475569" });
           g.hitStopFrames = 4;
         }
-        else if (hitRoll < 0.68) {
+        else if (rollVal < wFly + wGround) {
           playSe("meet");
           g.currentPlayType = "GROUND_BALL";
           const targetFielder = g.fielders[Math.floor(Math.random() * g.fielders.length)];
@@ -757,7 +823,7 @@ export default function MatchPage() {
 
           if (currentBatter) startGroundBallRunners(g, currentBatter, shouldChargeHome);
         }
-        else if (hitRoll < 0.88) {
+        else if (rollVal < wFly + wGround + wHit) {
           playSe("meet");
           g.currentPlayType = "CLEAN_HIT";
           const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.3;
@@ -768,7 +834,7 @@ export default function MatchPage() {
           g.hitStopFrames = 10;
           if (currentBatter) startHitRunners(g, "SINGLE", currentBatter);
         }
-        else if (hitRoll < 0.96) {
+        else if (rollVal < wFly + wGround + wHit + w2B) {
           playSe("meet");
           g.currentPlayType = "DOUBLE";
           const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.4;
@@ -818,7 +884,6 @@ export default function MatchPage() {
           setBanner({ text: "STOLEN BASE!! 盗塁成功!", color: "#16a34a" });
           setLog((prev) => [`見事なスタート！ 走者・${runner.name}が盗塁成功！`, ...prev.slice(0, 6)]);
         } else if (runner) {
-          playSe("out");
           g.outs++;
           if (from === "FIRST") g.runners.first = null;
           if (from === "SECOND") g.runners.second = null;
@@ -830,6 +895,7 @@ export default function MatchPage() {
             triggerInningChangeSequence(g, "盗塁死で 3アウト チェンジ！");
             return;
           }
+          playSe("out");
         }
 
         g.stealingRunner = null;
@@ -872,9 +938,10 @@ export default function MatchPage() {
           const fielderPlayer = getFielderPlayer(closestFielder.pos);
           const fldScore = fielderPlayer?.fielding ?? 60;
           const isTired = fielderPlayer ? (g.stamina[fielderPlayer.id] ?? 100) < 35 : false;
+          const aptitude = fielderPlayer?.main_position === closestFielder.pos ? 100 : 50;
 
           // ★ フライ捕球エラー（落球）判定
-          if (checkFieldingError(fldScore, isTired)) {
+          if (checkFieldingError(fldScore, isTired, aptitude)) {
             if (!g.isTop) g.myErrors++;
             else g.oppErrors++;
             setBanner({ text: "DROPPED FLY! 痛恨の落球エラー!", color: "#e11d48" });
@@ -895,9 +962,10 @@ export default function MatchPage() {
           const fielderPlayer = getFielderPlayer(closestFielder.pos);
           const fldScore = fielderPlayer?.fielding ?? 60;
           const isTired = fielderPlayer ? (g.stamina[fielderPlayer.id] ?? 100) < 35 : false;
+          const aptitude = fielderPlayer?.main_position === closestFielder.pos ? 100 : 50;
 
           // ★ ゴロ捕球エラー（ファンブル・後逸）判定
-          if (checkFieldingError(fldScore, isTired)) {
+          if (checkFieldingError(fldScore, isTired, aptitude)) {
             if (!g.isTop) g.myErrors++;
             else g.oppErrors++;
             setBanner({ text: "FIELDING ERROR! 痛恨のファンブル!", color: "#e11d48" });
@@ -962,7 +1030,6 @@ export default function MatchPage() {
       const ballDist = Math.hypot(g.ball.x - FIELD.SECOND.x, g.ball.y - FIELD.SECOND.y);
 
       if (ballDist < 16 || g.timer > 30) {
-        playSe("out");
         g.outs++;
         g.movingRunners = g.movingRunners.filter((r) => r.id !== "runner1");
         g.runners.first = null;
@@ -976,6 +1043,7 @@ export default function MatchPage() {
           triggerInningChangeSequence(g, "2塁フォースアウト！ 3アウト チェンジ！");
           return;
         }
+        playSe("out");
 
         g.phase = "THROWING_1B_DP";
         g.timer = 0;
@@ -1014,7 +1082,6 @@ export default function MatchPage() {
         const isDoublePlay = runnerDist > 14;
 
         if (isDoublePlay) {
-          playSe("out");
           g.outs++;
           g.movingRunners = g.movingRunners.filter((r) => r.id !== "batter");
           applyGroundAdvanceRunners(g);
@@ -1022,6 +1089,7 @@ export default function MatchPage() {
           if (g.outs >= 3) {
             triggerInningChangeSequence(g, "ダブルプレー成立！ 3アウト チェンジ！");
           } else {
+            playSe("out");
             let scored = 0;
             if (g.r3ChargedHome) {
               scored = 1;
@@ -1112,7 +1180,6 @@ export default function MatchPage() {
         if (!isBatterOut) {
           executeAtBatResult(g, "SINGLE", "俊足を飛ばしてセーフ！ 内野安打！", currentBatter);
         } else {
-          playSe("out");
           g.outs++;
           g.strikes = 0; g.balls = 0;
           g.movingRunners = g.movingRunners.filter((r) => r.id !== "batter");
@@ -1125,6 +1192,7 @@ export default function MatchPage() {
             triggerInningChangeSequence(g, "内野ゴロ、1塁アウト！ 3アウト チェンジ！");
             return;
           }
+          playSe("out");
 
           if (g.r3ChargedHome && g.runners.third) {
             g.phase = "THROWING_HOME";
@@ -1195,7 +1263,6 @@ export default function MatchPage() {
             return;
           }
         } else {
-          playSe("out");
           g.outs++;
           setBanner({ text: "DOUBLE PLAY!!", color: "#e11d48" });
           setLog((prev) => ["本塁タッチアウト！ 併殺（ダブルプレー）成立！", ...prev.slice(0, 6)]);
@@ -1209,6 +1276,7 @@ export default function MatchPage() {
         if (g.outs >= 3) {
           triggerInningChangeSequence(g, "本塁タッチアウト！ 3アウト チェンジ！");
         } else {
+          if (!isSafeAtHome) playSe("out");
           g.phase = "WAIT_NEXT";
           g.timer = 0;
           syncUI();
@@ -1248,8 +1316,9 @@ export default function MatchPage() {
     syncUI();
   };
 
+  // ★【音源組み込み】チェンジ時に 3out.wav を再生
   const triggerInningChangeSequence = (g: typeof gameRef.current, logText: string) => {
-    playSe("out");
+    playSe("3out");
     setBanner({ text: "3アウト チェンジ！", color: "#e11d48" });
     setLog((prev) => [logText, ...prev.slice(0, 6)]);
     g.phase = "INNING_CHANGE_WAIT";
@@ -1317,10 +1386,7 @@ export default function MatchPage() {
       playSe("strike");
       g.strikes++;
       if (g.strikes >= 3) {
-        playSe("out");
         g.outs++;
-
-        // ★【バグ修正⑤】三振成立時にカウントを即座にリセット！
         g.strikes = 0;
         g.balls = 0;
 
@@ -1336,6 +1402,7 @@ export default function MatchPage() {
           return;
         }
 
+        playSe("out");
         setBanner({ text: "STRIKE OUT!!", color: "#e11d48" });
         setLog((prev) => ["空振り三振！ バッターアウト！", ...prev.slice(0, 6)]);
         syncUI();
@@ -1380,7 +1447,6 @@ export default function MatchPage() {
     }
 
     if (outcome === "OUT") {
-      playSe("out");
       g.outs++;
       g.movingRunners = g.movingRunners.filter((r) => r.id !== "batter");
 
@@ -1391,6 +1457,7 @@ export default function MatchPage() {
         triggerInningChangeSequence(g, `${logMsg} 3アウト チェンジ！`);
         return;
       }
+      playSe("out");
       setBanner({ text: "OUT!", color: "#e11d48" });
     } else {
       let scored = 0;
@@ -1547,7 +1614,6 @@ export default function MatchPage() {
     g.isGameOver = true;
 
     playSe("gameset");
-    playBgm("ending");
 
     const myFinal = g.myScore.reduce((a, b) => a + b, 0);
     const oppFinal = g.oppScore.reduce((a, b) => a + b, 0);
@@ -1630,6 +1696,9 @@ export default function MatchPage() {
         let hasLostSummer = baseTeam.has_lost_summer || false;
         let hasWonAutumn = baseTeam.has_won_autumn || false;
 
+        // ★ ビッグマッチ勝利演出の検知
+        let specialVictoryData: typeof specialVictory = null;
+
         if (currentSeason === "SPRING") {
           if (currentRnd < 4) {
             nextRound = currentRnd + 1;
@@ -1641,7 +1710,6 @@ export default function MatchPage() {
             transitionMsg = "【春季プレシーズン全4試合完走！ 夏の全国大学トーナメントへ進出！】";
           }
         } else if (currentSeason === "SUMMER") {
-          // ★【改善③】夏のトーナメント勝敗分岐
           if (currentRnd === 1) {
             nextRound = 2;
             if (resultType !== "WIN") {
@@ -1669,6 +1737,18 @@ export default function MatchPage() {
               transitionMsg = hasLostSummer ? "【夏の順位決定戦全日程終了！ 秋の大学公式リーグへ！】" : "【夏の全国トーナメント準優勝！ 秋の大学公式リーグへ！】";
             }
           } else if (currentRnd >= 4) {
+            // ★ アジア大学選手権勝利時
+            if (resultType === "WIN") {
+              specialVictoryData = {
+                type: "ASIA",
+                title: "アジア大学選手権 完全制覇！",
+                subTitle: "ASIA CHAMPIONSHIP VICTORY",
+                desc: "アジア各国の精鋭スーパースター軍団を撃破！ 青葉女子大学がアジア女子野球の頂点に君臨！",
+                imageUrl: "/win_asia.jpg",
+                rewardText: "部費 +150万円 / 翌春アジア留学生スカウト合流権",
+                bgm: "win_asia",
+              };
+            }
             nextSeason = "AUTUMN";
             nextRound = 1;
             transitionMsg = "【アジア大学選手権 激闘終了！ 秋の大学公式リーグへ！】";
@@ -1689,6 +1769,16 @@ export default function MatchPage() {
             const isChampion = leagueData.standings[0]?.teamId === 0;
 
             if (isChampion) {
+              // ★ 秋季リーグ制覇時
+              specialVictoryData = {
+                type: "AUTUMN",
+                title: "秋季公式リーグ 完全優勝！！",
+                subTitle: "AUTUMN LEAGUE CHAMPIONS",
+                desc: "伝統校がひしめくインカレ1部リーグを堂々制覇！ 歓喜の胴上げとともに、世界最強【全米カレッジ選抜】への挑戦権を獲得！",
+                imageUrl: "/win_autumn.jpg",
+                rewardText: "部費 +200万円 / 日米親善選手権インビテーション",
+                bgm: "win_autumn",
+              };
               nextRound = 8;
               hasWonAutumn = true;
               transitionMsg = "【秋季公式リーグ制覇！ 優勝特典【日米親善大学野球・全米カレッジ選抜戦】へ進出！】";
@@ -1697,9 +1787,29 @@ export default function MatchPage() {
               transitionMsg = "【秋の大学公式リーグ全日程終了！ 4年生卒業式 ＆ 新歓ドラフトへ】";
             }
           } else if (currentRnd >= 8) {
+            // ★ 全米カレッジ選抜撃破時（本ゲームの裏ボス制覇！）
+            if (resultType === "WIN") {
+              specialVictoryData = {
+                type: "USA",
+                title: "世界最強撃破！ 世紀のジャイアントキリング！！",
+                subTitle: "WORLD INVITATIONAL CHAMPIONS",
+                desc: "最速160km/h超の剛腕と全米ドラ1軍団を相手に奇跡の大勝利！ 4年間の結晶が、女子野球の歴史を塗り替えた！",
+                imageUrl: "/win_usa.jpg",
+                rewardText: "部費 +300万円 / 女子野球殿堂入り記念称号",
+                bgm: "win_usa",
+              };
+            }
             isSeasonEnd = true;
             transitionMsg = "【日米親善大学野球 激闘終了！ 4年生卒業式 ＆ 新歓ドラフトへ】";
           }
+        }
+
+        // BGM切り替え
+        if (specialVictoryData) {
+          playBgm(specialVictoryData.bgm);
+          setSpecialVictory(specialVictoryData);
+        } else {
+          playBgm("ending");
         }
 
         // シーズン終了時の世代交代処理
@@ -1944,6 +2054,12 @@ export default function MatchPage() {
     router.push("/");
   };
 
+  // ★ 卒業式モーダル突入時に graduation.m4a を再生
+  const handleOpenGraduationCeremony = () => {
+    playBgm("graduation");
+    setShowGraduationCeremony(true);
+  };
+
   const handleConfirmSuccessor = () => {
     if (!selectedSuccessorId || !baseTeamRef.current) return;
     assignNextProtagonist(baseTeamRef.current, selectedSuccessorId);
@@ -2050,7 +2166,7 @@ export default function MatchPage() {
       if (team.has_lost_summer) {
         return team.current_round === 2 
           ? "全国大学トーナメント 敗者復活戦（5〜8位決定戦） / 5イニング制" 
-          : "全国大学トーナメント 5位決定戦 / 5イニング制";
+          : "全国大学トーナメント 3位決定戦 / 5イニング制";
       }
       const rounds = ["1回戦", "準決勝", "決勝戦"];
       return `全国大学トーナメント ${rounds[team.current_round - 1] || `${team.current_round}回戦`} / 5イニング制`;
@@ -2316,7 +2432,7 @@ export default function MatchPage() {
                 </div>
               </div>
 
-              {/* ★【機能改善④】グラウンドコンテナ（タップでポーズ解除・試合再開） */}
+              {/* グラウンドコンテナ（タップでポーズ解除・試合再開） */}
               <div 
                 onClick={() => {
                   if (isPaused) {
@@ -2334,7 +2450,6 @@ export default function MatchPage() {
                   className="absolute inset-0 w-full h-full pointer-events-none"
                 />
 
-                {/* ★ ポーズ中のタップ再開オーバーレイ案内 */}
                 {isPaused && (
                   <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex flex-col items-center justify-center z-30 pointer-events-none animate-in fade-in duration-150">
                     <div className="bg-slate-900/90 text-white px-5 py-2.5 rounded-2xl border border-white/20 shadow-2xl flex items-center gap-2">
@@ -2690,8 +2805,69 @@ export default function MatchPage() {
         <PlayerCardModal player={viewPlayer} onClose={() => setViewPlayer(null)} />
       )}
 
+      {/* ============================================================== */}
+      {/* ★【新機能②】ビッグマッチ勝利特別演出モーダル（画像・号外・音楽） */}
+      {/* ============================================================== */}
+      {specialVictory && (
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-500">
+          <div className="max-w-xl w-full bg-slate-900 border-2 border-amber-400/80 rounded-3xl p-6 md:p-8 text-center space-y-5 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300 text-white">
+            
+            <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500" />
+            <div className="absolute -top-12 -right-12 w-44 h-44 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+
+            <div className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-400/50 px-4 py-1 rounded-full text-xs font-black tracking-widest uppercase">
+              <Crown size={14} className="text-amber-400" /> {specialVictory.subTitle}
+            </div>
+
+            {/* 背景画像エリア */}
+            <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-800 border-2 border-amber-400/50 shadow-2xl">
+              <img
+                src={specialVictory.imageUrl}
+                alt={specialVictory.title}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // 画像がない場合のフォールバック表示
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent pointer-events-none flex items-end p-4">
+                <span className="text-xs font-mono font-bold text-amber-300">青葉女子大学野球部 栄光の軌跡</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <h2 className="text-xl md:text-2xl font-black text-amber-400 drop-shadow">
+                {specialVictory.title}
+              </h2>
+              <p className="text-xs md:text-sm text-slate-300 font-medium leading-relaxed">
+                {specialVictory.desc}
+              </p>
+            </div>
+
+            {/* 特別獲得報酬 */}
+            <div className="bg-gradient-to-r from-amber-500/20 via-amber-400/30 to-amber-500/20 border border-amber-400/60 rounded-2xl p-3 text-xs font-black text-amber-200 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Award size={16} className="text-amber-400" /> 獲得特典・称号:
+              </span>
+              <span className="text-white font-mono">{specialVictory.rewardText}</span>
+            </div>
+
+            <button
+              onClick={() => {
+                setSpecialVictory(null);
+              }}
+              className="w-full bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black py-4 rounded-2xl shadow-xl transition text-xs md:text-sm flex items-center justify-center gap-2"
+            >
+              <span>栄光を称える（表彰結果へ）</span>
+              <ArrowRight size={16} />
+            </button>
+
+          </div>
+        </div>
+      )}
+
       {/* 試合終了リザルトモーダル */}
-      {matchResult && !showGraduationCeremony && !showGrandEnding && !showSuccessorModal && (
+      {matchResult && !specialVictory && !showGraduationCeremony && !showGrandEnding && !showSuccessorModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300 select-none">
           <div className="bg-white rounded-3xl p-5 md:p-7 max-w-lg w-full shadow-2xl border border-slate-200 text-center space-y-4 max-h-[90vh] overflow-y-auto">
             
@@ -2769,11 +2945,10 @@ export default function MatchPage() {
               <span className="font-mono text-sm text-amber-800 font-black">+{matchResult.earnedTp} 万円</span>
             </div>
 
-            {/* ★【機能改善⑧】秋終了時は必ず卒業式モーダルへ進む */}
             <button
               onClick={() => {
                 if (matchResult.isSeasonEnd) {
-                  setShowGraduationCeremony(true);
+                  handleOpenGraduationCeremony();
                 } else {
                   handleReturnClubhouse();
                 }
@@ -2789,7 +2964,7 @@ export default function MatchPage() {
       )}
 
       {/* ============================================================== */}
-      {/* ★【機能改善⑧】第◯期生 卒業証書授与式 ＆ 進路報告会モーダル */}
+      {/* 第◯期生 卒業証書授与式 ＆ 進路報告会モーダル */}
       {/* ============================================================== */}
       {showGraduationCeremony && matchResult?.graduatedList && (
         <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-300">
@@ -2874,7 +3049,7 @@ export default function MatchPage() {
         </div>
       )}
 
-      {/* ★ 主人公卒業グランドエンディング（大団円）モーダル */}
+      {/* 主人公卒業グランドエンディング（大団円）モーダル */}
       {showGrandEnding && protagonist && (
         <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-500">
           <div className="max-w-xl w-full bg-slate-900 border-2 border-amber-400/80 rounded-3xl p-6 md:p-8 text-center space-y-6 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-500 text-white">
@@ -2953,7 +3128,7 @@ export default function MatchPage() {
         </div>
       )}
 
-      {/* ★ エンドレスエース指名会議モーダル */}
+      {/* エンドレスエース指名会議モーダル */}
       {showSuccessorModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-300">
           <div className="max-w-xl w-full bg-white rounded-3xl p-6 md:p-8 shadow-2xl border border-slate-200 space-y-5 text-center">
