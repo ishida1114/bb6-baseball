@@ -359,9 +359,7 @@ export function getCorporateAllStars(): LeagueTeam {
 
 // ==========================================
 // 5. 春 第4戦：六大学カレッジ・オールスターズ
-//    ★ ライバル7校から看板選手を集め「10名全員が固有顔写真付き」のドリームチームを編成
 // ==========================================
-// 実在する画像アセット（/246.jpg〜/255.jpg）を使用した確実なセーフティネット用スター選手10名
 const STATIC_ALL_STAR_HEROINES: Player[] = [
   { id: 9201, name: "橘 炎華 (紅蓮体育大)", main_position: "P", image_url: "/246.jpg", pitch_speed: 84, control: 82, contact: 74, power: 80, speed: 72, fielding: 78, arm: 82, grade: 3, batting_hand: "R", personality: "熱血", nickname: "紅蓮の剛腕" },
   { id: 9202, name: "白銀 怜奈 (白百合女子大)", main_position: "P", image_url: "/247.jpg", pitch_speed: 80, control: 88, contact: 76, power: 68, speed: 70, fielding: 84, arm: 80, grade: 3, batting_hand: "L", personality: "クール", nickname: "白百合の至宝" },
@@ -393,11 +391,9 @@ export function getCollegeAllStars(savedOpponents?: LeagueTeam[]): LeagueTeam {
     baseTeams = OPPONENT_UNIVERSITIES;
   }
 
-  // ★ 7大学から固定画像選手を均等に招集
   const allStarRoster: Player[] = [];
   const seenIds = new Set<number>();
 
-  // 1巡目：各大学の看板スター選手（最も能力の高い固定画像選手）を1名ずつ招集
   baseTeams.forEach((team) => {
     const uniques = (team.players || []).filter((p) => hasUniqueImage(p));
     uniques.sort((a, b) => {
@@ -415,7 +411,6 @@ export function getCollegeAllStars(savedOpponents?: LeagueTeam[]): LeagueTeam {
     }
   });
 
-  // 2巡目：10名になるまで、各大学の2番手スターを招集
   baseTeams.forEach((team) => {
     if (allStarRoster.length >= 10) return;
     const uniques = (team.players || []).filter((p) => hasUniqueImage(p));
@@ -434,7 +429,6 @@ export function getCollegeAllStars(savedOpponents?: LeagueTeam[]): LeagueTeam {
     }
   });
 
-  // 投手(P)と捕手(C)のポジション保証チェック
   const hasPitcher = allStarRoster.some((p) => p.main_position === "P");
   if (!hasPitcher) {
     let bestP: Player | null = null;
@@ -449,7 +443,6 @@ export function getCollegeAllStars(savedOpponents?: LeagueTeam[]): LeagueTeam {
     }
   }
 
-  // 万が一、セーブデータ内の固有選手が10名未満の場合のセーフティネット（実在画像を使用）
   if (allStarRoster.length < 10) {
     STATIC_ALL_STAR_HEROINES.forEach((heroine) => {
       if (allStarRoster.length < 10 && !seenIds.has(heroine.id)) {
@@ -478,9 +471,38 @@ export function getCollegeAllStars(savedOpponents?: LeagueTeam[]): LeagueTeam {
 
 // ==========================================
 // 6. 夏 優勝特典：アジア大学選抜（Asia All-Stars）
+//    ★【2年目撃破目標】各国のスーパースターが集結したアジア王者
 // ==========================================
 export function getAsiaAllStars(): LeagueTeam {
-  const asiaRoster = [...ASIA_PLAYERS];
+  // 国際選抜チームとしてのスキルとステータス補正（2年目青葉が成長して好勝負できる水準）
+  const asiaSkillsMap: Record<number, string[]> = {
+    246: ["fastball_2", "breaking_2"], // リン（剛速球・魔球使い）
+    247: ["clutch_2"],                 // チェン（勝負師）
+    248: ["contact_2", "speed_2"],     // パク（安打製造機・韋駄天）
+    249: ["power_2"],                  // キム（大砲）
+    250: ["speed_1"],                  // グエン（盗塁◯）
+    251: ["fastball_2"],               // ソフィア（剛速球）
+    252: ["power_2"],                  // ワン（大砲）
+    253: ["speed_2"],                  // カン（韋駄天）
+    254: ["power_2"],                  // タナポーン（大砲）
+    255: ["breaking_2"],               // リー（魔球使い）
+  };
+
+  const asiaRoster = ASIA_PLAYERS.map((p) => {
+    return {
+      ...p,
+      grade: 2, // 国際大会時は第2学年
+      pitch_speed: Math.min(99, p.pitch_speed + 4), // リン: 80 (約150km/h)
+      control: Math.min(99, p.control + 4),
+      contact: Math.min(99, p.contact + 4),
+      power: Math.min(99, p.power + 4),
+      speed: Math.min(99, p.speed + 3),
+      fielding: Math.min(99, p.fielding + 3),
+      arm: Math.min(99, p.arm + 3),
+      skills: asiaSkillsMap[p.id] || [],
+    };
+  });
+
   const order = generateTeamOrder(asiaRoster);
 
   return {
@@ -491,8 +513,8 @@ export function getAsiaAllStars(): LeagueTeam {
     color: "#ea580c",
     badgeColor: "bg-orange-50 text-orange-700 border-orange-200",
     desc: "アジア大学選手権王者！ 各国のスーパースターが集結した国際選抜",
-    feature: "夏の全国トーナメント覇者だけが挑める国際決戦！ 翌春ドラフトの予習にも！",
-    strength: { pitch: 88, contact: 85, power: 86, speed: 84, defense: 84 },
+    feature: "2年目の青葉が激突するアジアの壁！ 打ち崩して国際親善トロフィーを掴み取れ！",
+    strength: { pitch: 86, contact: 84, power: 85, speed: 84, defense: 84 },
     players: asiaRoster,
     order,
   };
@@ -521,22 +543,24 @@ export function getSpringPreSeasonOpponent(
 
 // ==========================================
 // 8. 秋 リーグ優勝特典：全米カレッジ選抜（USA All-Stars）
-//    ID 256〜265 の米国スーパースター軍団
+//    ★【4年目撃破目標・本ゲームの裏ボス】
+//    最速160km/h超の剛腕と規格外の重量打線を誇る世界最高峰軍団
 // ==========================================
 export const USA_PLAYERS: Player[] = [
   {
     id: 256,
     name: "ジェシカ・ミラー",
     main_position: "P",
-    grade: 3,
+    grade: 4,
     batting_hand: "R",
     image_url: "/256.jpg",
-    contact: 74, power: 80, speed: 76, arm: 92, fielding: 84,
-    pitch_speed: 92,
-    control: 82, stamina: 90, breaking_ball: 86,
+    contact: 78, power: 88, speed: 78, arm: 95, fielding: 88,
+    pitch_speed: 96, // 100 + 96*0.63 = 約160.5 km/h
+    control: 88, stamina: 96, breaking_ball: 92,
     personality: "熱血",
     nickname: "カリフォルニア・エクスプレス",
-    description: "全米最速を誇る剛腕エース。打撃でも鋭い打球を連発する投打の二刀流。",
+    skills: ["fastball_3", "power_2"], // 火の玉ストレート ＆ 大砲
+    description: "全米最速160km/hを叩き出す超怪物エース。打者としても規格外の飛距離を放つ。",
   },
   {
     id: 257,
@@ -545,11 +569,12 @@ export const USA_PLAYERS: Player[] = [
     grade: 4,
     batting_hand: "R",
     image_url: "/257.jpg",
-    contact: 80, power: 86, speed: 64, arm: 94, fielding: 90,
+    contact: 85, power: 92, speed: 66, arm: 96, fielding: 94,
     pitch_speed: 60, control: 55,
     personality: "頭脳派",
     nickname: "全米No.1コマンダー",
-    description: "強肩強打の司令塔。盗塁を一切許さないレーザービーム送球と的確なリードが武器。",
+    skills: ["clutch_2", "power_2"], // 勝負師 ＆ 大砲
+    description: "強肩強打の全米屈指の司令塔。レーザービーム送球で盗塁を完全阻止する。",
   },
   {
     id: 258,
@@ -558,37 +583,40 @@ export const USA_PLAYERS: Player[] = [
     grade: 4,
     batting_hand: "L",
     image_url: "/258.jpg",
-    contact: 78, power: 96, speed: 58, arm: 82, fielding: 78,
+    contact: 82, power: 99, speed: 62, arm: 86, fielding: 82,
     pitch_speed: 55, control: 50,
     personality: "お調子者",
     nickname: "テキサス・モンスター",
-    description: "全米大学屈指のスラッガー。芯で捉えた打球はすべて場外へと消え去る。",
+    skills: ["power_3"], // 怪力モンスター
+    description: "全米大学最強のメガトン砲。芯で捉えた打球は場外スタンドへと消えていく。",
   },
   {
     id: 259,
     name: "クロエ・ジョンソン",
     main_position: "2B",
-    grade: 2,
+    grade: 3,
     batting_hand: "R",
     image_url: "/259.jpg",
-    contact: 86, power: 68, speed: 84, arm: 80, fielding: 92,
+    contact: 90, power: 74, speed: 88, arm: 84, fielding: 95,
     pitch_speed: 50, control: 50,
     personality: "クール",
     nickname: "ダイヤモンドの芸術家",
-    description: "華麗なグラブ捌きと正確無比なミート力。守備範囲の広さは全米屈指。",
+    skills: ["contact_2", "speed_2"], // 安打製造機 ＆ 韋駄天
+    description: "華麗なグラブ捌きと正確無比なミート力。守備範囲の広さはメジャー級。",
   },
   {
     id: 260,
     name: "マディソン・ウィリアムズ",
     main_position: "3B",
-    grade: 3,
+    grade: 4,
     batting_hand: "R",
     image_url: "/260.jpg",
-    contact: 82, power: 88, speed: 72, arm: 88, fielding: 84,
+    contact: 86, power: 94, speed: 76, arm: 90, fielding: 88,
     pitch_speed: 60, control: 55,
     personality: "努力家",
     nickname: "鉄壁のホットコーナー",
-    description: "強烈なライナーを軽々とさばき、得点圏では確実にランナーを還す勝負師。",
+    skills: ["power_2", "clutch_2"], // 大砲 ＆ 勝負師
+    description: "強烈なライナーを軽々とさばき、得点圏では確実にランナーを還す全米屈指のスラッガー。",
   },
   {
     id: 261,
@@ -597,60 +625,65 @@ export const USA_PLAYERS: Player[] = [
     grade: 4,
     batting_hand: "L",
     image_url: "/261.jpg",
-    contact: 88, power: 76, speed: 94, arm: 86, fielding: 94,
+    contact: 92, power: 84, speed: 96, arm: 92, fielding: 96,
     pitch_speed: 60, control: 55,
     personality: "熱血",
     nickname: "全米カレッジキャプテン",
-    description: "走攻守すべてが超一流の主将。高い出塁率と俊足でチームを勝利に導く。",
+    skills: ["contact_3", "speed_3"], // 球聖 ＆ 神速
+    description: "走攻守すべてが世界規格の全米主将。ダイヤモンドを疾風のように駆け抜ける。",
   },
   {
     id: 262,
     name: "オリビア・ブラウン",
     main_position: "P",
-    grade: 2,
+    grade: 3,
     batting_hand: "L",
     image_url: "/262.jpg",
-    contact: 65, power: 70, speed: 68, arm: 85, fielding: 80,
-    pitch_speed: 86, control: 88, stamina: 82, breaking_ball: 92,
+    contact: 68, power: 72, speed: 70, arm: 88, fielding: 84,
+    pitch_speed: 90, control: 92, stamina: 86, breaking_ball: 96,
     personality: "クール",
     nickname: "サウスポー・ドクターK",
-    description: "鋭いスクリューとスライダーで三振の山を築く強力リリーフサウスポー。",
+    skills: ["breaking_3"], // 七色の変化球
+    description: "鋭いスクリューと高速スライダーで三振の山を築く強力リリーフサウスポー。",
   },
   {
     id: 263,
     name: "ソフィア・デイビス",
     main_position: "1B",
-    grade: 3,
+    grade: 4,
     batting_hand: "R",
     image_url: "/263.jpg",
-    contact: 76, power: 92, speed: 60, arm: 76, fielding: 74,
+    contact: 80, power: 95, speed: 64, arm: 80, fielding: 78,
     pitch_speed: 50, control: 50,
     personality: "マイペース",
     nickname: "全米代打の切り札",
+    skills: ["power_2"], // 大砲
   },
   {
     id: 264,
     name: "アバ・ウィルソン",
     main_position: "SS",
-    grade: 1,
+    grade: 2,
     batting_hand: "L",
     image_url: "/264.jpg",
-    contact: 80, power: 58, speed: 96, arm: 78, fielding: 86,
+    contact: 84, power: 65, speed: 98, arm: 82, fielding: 88,
     pitch_speed: 50, control: 50,
     personality: "お調子者",
     nickname: "スピードスター",
+    skills: ["speed_3"], // 神速
   },
   {
     id: 265,
     name: "イザベラ・トーマス",
     main_position: "C",
-    grade: 2,
+    grade: 3,
     batting_hand: "R",
     image_url: "/265.jpg",
-    contact: 75, power: 80, speed: 66, arm: 86, fielding: 86,
+    contact: 80, power: 85, speed: 68, arm: 90, fielding: 90,
     pitch_speed: 55, control: 50,
     personality: "努力家",
     nickname: "万能サブ捕手",
+    skills: ["clutch_1"], // チャンス◯
   },
 ];
 
@@ -666,8 +699,8 @@ export function getUsaAllStars(): LeagueTeam {
     color: "#1e3a8a",
     badgeColor: "bg-blue-900 text-white border-blue-700",
     desc: "全米大学女子野球の頂点！ メジャー級の体格とパワーを誇る世界最強軍団",
-    feature: "秋季リーグ制覇の王者のみが挑める世界最高峰マッチ！ 勝利で伝説へ！",
-    strength: { pitch: 92, contact: 88, power: 94, speed: 86, defense: 90 },
+    feature: "4年間の集大成で挑む世界最高峰マッチ！ 奇跡のジャイアントキリングを起こせ！",
+    strength: { pitch: 96, contact: 92, power: 96, speed: 90, defense: 94 },
     players: usaRoster,
     order,
   };

@@ -1,7 +1,7 @@
 // lib/league.ts
 import { Player, PositionType, TeamOrder, LeagueTeam, LeagueData, MatchRecord, TeamStanding, UserTeam } from "@/types/baseball";
 
-// === 敵7大学のマスターデータ定義 ===
+// === 敵7大学のマスターデータ定義（二つ名1.3倍特化＆特能付与版） ===
 export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
   {
     id: 1,
@@ -10,8 +10,9 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
     initial: "紅",
     color: "#dc2626", // 赤
     badgeColor: "bg-red-50 text-red-700 border-red-200",
-    desc: "超重量打線！ 柵越えホームランを狙うパワー集団",
-    strength: { pitch: 72, contact: 70, power: 88, speed: 65, defense: 68 },
+    desc: "超重量打線！ 当たればどこまでも飛ぶ怪力パワー集団",
+    feature: "1番から6番まで全員フルスイング！ 失投を見逃さず柵越えを狙う豪快野球",
+    strength: { pitch: 72, contact: 72, power: 98, speed: 65, defense: 68 },
     order: {
       batting_order: [101, 102, 103, 104, 105, 106],
       defense_positions: { P: 106, C: 105, "1B": 103, "2B": 102, "3B": 104, SS: 101 },
@@ -21,12 +22,12 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
       tactics: "POWER",
     },
     players: [
-      { id: 101, name: "火野 晶", grade: 2, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 68, power: 72, speed: 70, arm: 65, fielding: 65, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 102, name: "轟 響子", grade: 3, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 65, power: 75, speed: 60, arm: 60, fielding: 65, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 103, name: "剛田 麗美", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 70, power: 90, speed: 50, arm: 70, fielding: 60, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 104, name: "鬼塚 琥珀", grade: 3, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 72, power: 92, speed: 55, arm: 75, fielding: 65, skills: [], image_url: "/901.jpg", batting_hand: "L" }, // 左打
-      { id: 105, name: "赤松 仁奈", grade: 2, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 62, power: 78, speed: 52, arm: 80, fielding: 70, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 106, name: "煉獄 杏", grade: 3, main_position: "P", pitch_speed: 78, control: 62, stamina: 70, breaking_ball: 66, contact: 55, power: 70, speed: 58, arm: 75, fielding: 65, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 101, name: "火野 晶", grade: 2, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 68, power: 80, speed: 70, arm: 68, fielding: 66, skills: ["power_1"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 102, name: "轟 響子", grade: 3, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 66, power: 84, speed: 62, arm: 62, fielding: 66, skills: ["power_1"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 103, name: "剛田 麗美", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 72, power: 98, speed: 50, arm: 72, fielding: 62, skills: ["power_3"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 104, name: "鬼塚 琥珀", grade: 3, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 74, power: 96, speed: 55, arm: 78, fielding: 68, skills: ["power_2"], image_url: "/901.jpg", batting_hand: "L" }, // 左打
+      { id: 105, name: "赤松 仁奈", grade: 2, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 64, power: 88, speed: 52, arm: 82, fielding: 72, skills: ["power_1"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 106, name: "煉獄 杏", grade: 3, main_position: "P", pitch_speed: 82, control: 64, stamina: 75, breaking_ball: 68, contact: 60, power: 82, speed: 60, arm: 78, fielding: 68, skills: ["power_1"], image_url: "/901.jpg", batting_hand: "R" },
     ],
   },
   {
@@ -37,7 +38,8 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
     color: "#2563eb", // 青
     badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
     desc: "絶対的エースと鉄壁の守備陣！ 1点を守り抜く名門",
-    strength: { pitch: 88, contact: 68, power: 60, speed: 65, defense: 88 },
+    feature: "160km/h迫る剛速球エースと隙のない内野陣！ 容易に得点を許さない",
+    strength: { pitch: 96, contact: 72, power: 62, speed: 68, defense: 96 },
     order: {
       batting_order: [201, 202, 203, 204, 205, 206],
       defense_positions: { P: 206, C: 205, "1B": 203, "2B": 202, "3B": 204, SS: 201 },
@@ -47,12 +49,12 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
       tactics: "NORMAL",
     },
     players: [
-      { id: 201, name: "一条 華憐", grade: 3, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 70, power: 58, speed: 72, arm: 75, fielding: 88, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 202, name: "綾小路 凛", grade: 2, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 68, power: 55, speed: 70, arm: 70, fielding: 85, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 203, name: "鷹司 詩織", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 75, power: 68, speed: 60, arm: 68, fielding: 82, skills: [], image_url: "/901.jpg", batting_hand: "L" }, // 左打
-      { id: 204, name: "西園寺 楓", grade: 3, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 72, power: 65, speed: 62, arm: 78, fielding: 85, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 205, name: "九条 紗雪", grade: 4, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 65, power: 62, speed: 55, arm: 85, fielding: 90, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 206, name: "白鳥 聖羅", grade: 3, main_position: "P", pitch_speed: 82, control: 86, stamina: 82, breaking_ball: 85, contact: 60, power: 55, speed: 60, arm: 82, fielding: 80, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 201, name: "一条 華憐", grade: 3, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 74, power: 60, speed: 74, arm: 82, fielding: 94, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 202, name: "綾小路 凛", grade: 2, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 70, power: 56, speed: 72, arm: 75, fielding: 92, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 203, name: "鷹司 詩織", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 78, power: 70, speed: 62, arm: 72, fielding: 88, skills: [], image_url: "/901.jpg", batting_hand: "L" }, // 左打
+      { id: 204, name: "西園寺 楓", grade: 3, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 74, power: 68, speed: 65, arm: 84, fielding: 90, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 205, name: "九条 紗雪", grade: 4, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 68, power: 64, speed: 58, arm: 92, fielding: 96, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 206, name: "白鳥 聖羅", grade: 3, main_position: "P", pitch_speed: 90, control: 92, stamina: 88, breaking_ball: 90, contact: 62, power: 58, speed: 62, arm: 88, fielding: 86, skills: ["fastball_2", "breaking_2"], image_url: "/901.jpg", batting_hand: "R" },
     ],
   },
   {
@@ -63,7 +65,8 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
     color: "#0891b2", // ターコイズ
     badgeColor: "bg-cyan-50 text-cyan-700 border-cyan-200",
     desc: "驚異の機動力！ 足と小技で内野をかき乱す韋駄天集団",
-    strength: { pitch: 68, contact: 74, power: 52, speed: 90, defense: 75 },
+    feature: "出塁＝即スチール！ ダイヤモンドを疾風のように駆け抜ける俊足軍団",
+    strength: { pitch: 70, contact: 78, power: 52, speed: 98, defense: 78 },
     order: {
       batting_order: [301, 302, 303, 304, 305, 306],
       defense_positions: { P: 306, C: 305, "1B": 303, "2B": 302, "3B": 304, SS: 301 },
@@ -73,12 +76,12 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
       tactics: "BUNT",
     },
     players: [
-      { id: 301, name: "早川 疾風", grade: 2, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 76, power: 48, speed: 94, arm: 72, fielding: 78, skills: [], image_url: "/901.jpg", batting_hand: "L" }, // 左打
-      { id: 302, name: "波多野 渚", grade: 3, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 75, power: 45, speed: 90, arm: 68, fielding: 80, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 303, name: "潮崎 汐里", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 72, power: 58, speed: 85, arm: 70, fielding: 72, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 304, name: "飛沫 舞", grade: 1, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 70, power: 52, speed: 88, arm: 72, fielding: 74, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 305, name: "大波 涼風", grade: 3, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 66, power: 55, speed: 82, arm: 76, fielding: 76, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 306, name: "海堂 湊", grade: 2, main_position: "P", pitch_speed: 73, control: 70, stamina: 68, breaking_ball: 72, contact: 58, power: 45, speed: 78, arm: 74, fielding: 72, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 301, name: "早川 疾風", grade: 2, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 80, power: 48, speed: 98, arm: 74, fielding: 82, skills: ["speed_3"], image_url: "/901.jpg", batting_hand: "L" }, // 左打
+      { id: 302, name: "波多野 渚", grade: 3, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 78, power: 46, speed: 95, arm: 70, fielding: 84, skills: ["speed_2"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 303, name: "潮崎 汐里", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 76, power: 60, speed: 92, arm: 72, fielding: 76, skills: ["speed_2"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 304, name: "飛沫 舞", grade: 1, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 74, power: 54, speed: 94, arm: 74, fielding: 78, skills: ["speed_1"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 305, name: "大波 涼風", grade: 3, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 70, power: 58, speed: 88, arm: 80, fielding: 80, skills: ["speed_1"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 306, name: "海堂 湊", grade: 2, main_position: "P", pitch_speed: 76, control: 74, stamina: 75, breaking_ball: 76, contact: 62, power: 48, speed: 84, arm: 76, fielding: 76, skills: [], image_url: "/901.jpg", batting_hand: "R" },
     ],
   },
   {
@@ -89,7 +92,8 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
     color: "#059669", // エメラルド
     badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
     desc: "徹底したデータ分析と配球術！ 相手の弱点を突く知性派",
-    strength: { pitch: 78, contact: 75, power: 65, speed: 68, defense: 78 },
+    feature: "ストライクゾーン隅を突く精密コントロールと、的確な配球予測で安打を量産",
+    strength: { pitch: 88, contact: 92, power: 65, speed: 68, defense: 86 },
     order: {
       batting_order: [401, 402, 403, 404, 405, 406],
       defense_positions: { P: 406, C: 405, "1B": 403, "2B": 402, "3B": 404, SS: 401 },
@@ -99,12 +103,12 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
       tactics: "MEET",
     },
     players: [
-      { id: 401, name: "神保 麻衣", grade: 3, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 78, power: 62, speed: 72, arm: 74, fielding: 80, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 402, name: "井上 理香", grade: 2, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 76, power: 58, speed: 70, arm: 72, fielding: 78, skills: [], image_url: "/901.jpg", batting_hand: "L" }, // 左打
-      { id: 403, name: "真田 雅", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 74, power: 72, speed: 64, arm: 70, fielding: 75, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 404, name: "策木 智代", grade: 3, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 75, power: 68, speed: 65, arm: 76, fielding: 78, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 405, name: "配島 鏡華", grade: 4, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 72, power: 60, speed: 58, arm: 82, fielding: 84, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 406, name: "数式 千春", grade: 3, main_position: "P", pitch_speed: 74, control: 84, stamina: 75, breaking_ball: 80, contact: 62, power: 50, speed: 60, arm: 75, fielding: 78, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 401, name: "神保 麻衣", grade: 3, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 90, power: 64, speed: 74, arm: 78, fielding: 86, skills: ["contact_2"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 402, name: "井上 理香", grade: 2, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 88, power: 60, speed: 72, arm: 75, fielding: 84, skills: ["contact_1"], image_url: "/901.jpg", batting_hand: "L" }, // 左打
+      { id: 403, name: "真田 雅", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 86, power: 74, speed: 66, arm: 74, fielding: 80, skills: ["clutch_2"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 404, name: "策木 智代", grade: 3, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 88, power: 70, speed: 68, arm: 80, fielding: 84, skills: ["contact_1"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 405, name: "配島 鏡華", grade: 4, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 82, power: 62, speed: 60, arm: 86, fielding: 90, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 406, name: "数式 千春", grade: 3, main_position: "P", pitch_speed: 76, control: 96, stamina: 82, breaking_ball: 90, contact: 68, power: 52, speed: 64, arm: 78, fielding: 84, skills: ["breaking_2"], image_url: "/901.jpg", batting_hand: "R" },
     ],
   },
   {
@@ -115,7 +119,8 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
     color: "#db2777", // ピンク
     badgeColor: "bg-pink-50 text-pink-700 border-pink-200",
     desc: "攻守のバランスが整った伝統の強豪！ チームワーク抜群",
-    strength: { pitch: 74, contact: 72, power: 70, speed: 70, defense: 74 },
+    feature: "上位から下位まで隙のない名門打線！ 総合力で相手をねじ伏せる",
+    strength: { pitch: 82, contact: 88, power: 85, speed: 76, defense: 82 },
     order: {
       batting_order: [501, 502, 503, 504, 505, 506],
       defense_positions: { P: 506, C: 505, "1B": 503, "2B": 502, "3B": 504, SS: 501 },
@@ -125,12 +130,12 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
       tactics: "NORMAL",
     },
     players: [
-      { id: 501, name: "桜井 希", grade: 2, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 72, power: 65, speed: 75, arm: 70, fielding: 74, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 502, name: "花園 美咲", grade: 3, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 70, power: 66, speed: 72, arm: 70, fielding: 76, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 503, name: "春日 結衣", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 74, power: 76, speed: 66, arm: 72, fielding: 72, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 504, name: "松本 撫子", grade: 3, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 75, power: 74, speed: 68, arm: 74, fielding: 75, skills: [], image_url: "/901.jpg", batting_hand: "L" }, // 左打
-      { id: 505, name: "小桜 綾", grade: 2, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 68, power: 64, speed: 62, arm: 78, fielding: 75, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 506, name: "桜木 萌", grade: 3, main_position: "P", pitch_speed: 75, control: 74, stamina: 72, breaking_ball: 74, contact: 60, power: 58, speed: 62, arm: 74, fielding: 72, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 501, name: "桜井 希", grade: 2, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 85, power: 74, speed: 82, arm: 76, fielding: 82, skills: ["contact_1"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 502, name: "花園 美咲", grade: 3, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 84, power: 75, speed: 78, arm: 74, fielding: 84, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 503, name: "春日 結衣", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 88, power: 86, speed: 70, arm: 78, fielding: 80, skills: ["power_2"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 504, name: "松本 撫子", grade: 3, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 88, power: 85, speed: 74, arm: 80, fielding: 82, skills: ["contact_2"], image_url: "/901.jpg", batting_hand: "L" }, // 左打
+      { id: 505, name: "小桜 綾", grade: 2, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 80, power: 75, speed: 68, arm: 84, fielding: 82, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 506, name: "桜木 萌", grade: 3, main_position: "P", pitch_speed: 82, control: 82, stamina: 78, breaking_ball: 80, contact: 70, power: 66, speed: 68, arm: 80, fielding: 78, skills: [], image_url: "/901.jpg", batting_hand: "R" },
     ],
   },
   {
@@ -141,7 +146,8 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
     color: "#475569", // スレート
     badgeColor: "bg-slate-100 text-slate-800 border-slate-300",
     desc: "雪国育ちの剛腕＆長打力！ 直球勝負の本格派スタイル",
-    strength: { pitch: 76, contact: 64, power: 78, speed: 62, defense: 68 },
+    feature: "150km/h後半の火の玉直球と大砲クリーンナップ！ 直球勝負の武闘派",
+    strength: { pitch: 92, contact: 68, power: 94, speed: 64, defense: 72 },
     order: {
       batting_order: [601, 602, 603, 604, 605, 606],
       defense_positions: { P: 606, C: 605, "1B": 603, "2B": 602, "3B": 604, SS: 601 },
@@ -151,12 +157,12 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
       tactics: "POWER",
     },
     players: [
-      { id: 601, name: "吹雪 梢", grade: 2, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 66, power: 68, speed: 68, arm: 72, fielding: 68, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 602, name: "白銀 凛子", grade: 3, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 64, power: 70, speed: 64, arm: 68, fielding: 70, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 603, name: "荒木 氷華", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 68, power: 84, speed: 56, arm: 74, fielding: 66, skills: [], image_url: "/901.jpg", batting_hand: "L" }, // 左打
-      { id: 604, name: "氷室 冴", grade: 3, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 65, power: 82, speed: 58, arm: 78, fielding: 68, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 605, name: "寒河江 梢", grade: 3, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 60, power: 72, speed: 52, arm: 82, fielding: 72, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 606, name: "冬木 鈴音", grade: 3, main_position: "P", pitch_speed: 80, control: 66, stamina: 78, breaking_ball: 70, contact: 54, power: 65, speed: 55, arm: 78, fielding: 68, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 601, name: "吹雪 梢", grade: 2, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 70, power: 76, speed: 72, arm: 78, fielding: 74, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 602, name: "白銀 凛子", grade: 3, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 68, power: 80, speed: 68, arm: 74, fielding: 76, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 603, name: "荒木 氷華", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 72, power: 95, speed: 58, arm: 80, fielding: 70, skills: ["power_2"], image_url: "/901.jpg", batting_hand: "L" }, // 左打
+      { id: 604, name: "氷室 冴", grade: 3, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 70, power: 92, speed: 62, arm: 84, fielding: 72, skills: ["power_2"], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 605, name: "寒河江 梢", grade: 3, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 64, power: 82, speed: 56, arm: 88, fielding: 78, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 606, name: "冬木 鈴音", grade: 3, main_position: "P", pitch_speed: 92, control: 72, stamina: 86, breaking_ball: 76, contact: 58, power: 74, speed: 60, arm: 86, fielding: 74, skills: ["fastball_2"], image_url: "/901.jpg", batting_hand: "R" },
     ],
   },
   {
@@ -167,7 +173,8 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
     color: "#d97706", // アンバー
     badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
     desc: "全員野球の下克上校！ 堅実なバントと失策の少なさが武器",
-    strength: { pitch: 66, contact: 68, power: 56, speed: 68, defense: 76 },
+    feature: "無尽蔵のスタミナと鉄壁のノーエラー守備！ 終盤まで集中力が一切途切れない",
+    strength: { pitch: 78, contact: 74, power: 58, speed: 74, defense: 94 },
     order: {
       batting_order: [701, 702, 703, 704, 705, 706],
       defense_positions: { P: 706, C: 705, "1B": 703, "2B": 702, "3B": 704, SS: 701 },
@@ -177,12 +184,12 @@ export const OPPONENT_UNIVERSITIES: LeagueTeam[] = [
       tactics: "BUNT",
     },
     players: [
-      { id: 701, name: "渡辺 友香", grade: 2, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 70, power: 50, speed: 75, arm: 68, fielding: 76, skills: [], image_url: "/901.jpg", batting_hand: "L" }, // 左打
-      { id: 702, name: "小林 亜美", grade: 3, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 68, power: 52, speed: 70, arm: 66, fielding: 78, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 703, name: "高橋 志穂", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 72, power: 65, speed: 64, arm: 68, fielding: 75, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 704, name: "伊藤 美咲", grade: 2, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 68, power: 60, speed: 65, arm: 70, fielding: 74, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 705, name: "佐々木 遥", grade: 3, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 64, power: 55, speed: 58, arm: 76, fielding: 78, skills: [], image_url: "/901.jpg", batting_hand: "R" },
-      { id: 706, name: "藤原 陽菜", grade: 2, main_position: "P", pitch_speed: 72, control: 72, stamina: 70, breaking_ball: 68, contact: 56, power: 48, speed: 60, arm: 70, fielding: 74, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 701, name: "渡辺 友香", grade: 2, main_position: "SS", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 76, power: 52, speed: 80, arm: 78, fielding: 92, skills: [], image_url: "/901.jpg", batting_hand: "L" }, // 左打
+      { id: 702, name: "小林 亜美", grade: 3, main_position: "2B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 74, power: 54, speed: 76, arm: 74, fielding: 94, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 703, name: "高橋 志穂", grade: 4, main_position: "1B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 76, power: 68, speed: 68, arm: 76, fielding: 90, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 704, name: "伊藤 美咲", grade: 2, main_position: "3B", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 74, power: 62, speed: 70, arm: 78, fielding: 88, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 705, name: "佐々木 遥", grade: 3, main_position: "C", pitch_speed: 60, control: 50, stamina: 50, breaking_ball: 50, contact: 70, power: 58, speed: 64, arm: 86, fielding: 94, skills: [], image_url: "/901.jpg", batting_hand: "R" },
+      { id: 706, name: "藤原 陽菜", grade: 2, main_position: "P", pitch_speed: 78, control: 86, stamina: 96, breaking_ball: 78, contact: 60, power: 50, speed: 65, arm: 78, fielding: 88, skills: [], image_url: "/901.jpg", batting_hand: "R" },
     ],
   },
 ];
@@ -266,7 +273,6 @@ export const resetLeagueForNewSeason = (userTeamName = "青葉女子大学"): Le
   const fresh = initLeagueData(userTeamName);
   if (typeof window !== "undefined") {
     localStorage.setItem("bb6_league", JSON.stringify(fresh));
-    // 個人タイトルランキングや試合ログの残留データもクリア
     try {
       localStorage.removeItem("bb6_individual_titles");
       localStorage.removeItem("bb6_player_stats");
@@ -285,7 +291,6 @@ export const resetLeagueForNewSeason = (userTeamName = "青葉女子大学"): Le
 export const growOpponentTeams = (currentYear: number, isChampion = false): LeagueTeam[] => {
   const growthAmount = 3 + (isChampion ? 1 : 0);
 
-  // 1. LocalStorageに保存されているドラフト配属済み敵チームを強化
   let savedTeams: LeagueTeam[] = [];
   if (typeof window !== "undefined") {
     const raw = localStorage.getItem("bb6_league_opponents");
@@ -342,7 +347,6 @@ export const getCurrentOpponent = (round: number): LeagueTeam => {
   const myMatch = sched.matches.find(([h, a]) => h === 0 || a === 0)!;
   const oppId = myMatch[0] === 0 ? myMatch[1] : myMatch[0];
 
-  // ドラフト保存データがあればそちらを使用
   if (typeof window !== "undefined") {
     const savedOpponents = localStorage.getItem("bb6_league_opponents");
     if (savedOpponents) {
@@ -356,7 +360,6 @@ export const getCurrentOpponent = (round: number): LeagueTeam => {
     }
   }
 
-  // フォールバック
   return OPPONENT_UNIVERSITIES.find((u) => u.id === oppId) || OPPONENT_UNIVERSITIES[0];
 };
 

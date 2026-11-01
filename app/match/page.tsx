@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Player, UserTeam, PositionType, LeagueTeam, TeamOrder, SeasonPhase, PersonalityType, BgmType } from "@/types/baseball";
+import { Player, UserTeam, PositionType, LeagueTeam, TeamOrder, SeasonPhase, PersonalityType } from "@/types/baseball";
 import { recordRoundResults, resetLeagueForNewSeason, growOpponentTeams, OPPONENT_UNIVERSITIES, loadLeagueData } from "@/lib/league";
 import { processYearEndGraduation, GraduatedPlayerWithCareer, assignNextProtagonist } from "@/lib/draft";
 import { 
@@ -12,7 +12,7 @@ import {
 } from "@/lib/specialTeams";
 import PlayerCardModal from "@/components/PlayerCardModal";
 import SoundToggle from "@/components/SoundToggle";
-import { playBgm, playSe } from "@/lib/sound";
+import { playBgm, playSe, BgmType, SeType } from "@/lib/sound";
 import { 
   ChevronLeft, Trophy, Pause, Play, FastForward, AlertCircle, 
   Gauge, ArrowRightLeft, Users, Info, X, Sparkles, Scale, Swords, ShieldHalf, Check, GraduationCap, Flame, Crown, Heart, Award, ArrowRight, UserCheck
@@ -142,7 +142,7 @@ function getSeasonOpponent(team: UserTeam, savedOpponents?: LeagueTeam[]): Leagu
       return oppList[1] || oppList[0];
     } else {
       if (rnd === 2) return oppList[4] || oppList[0];
-      return oppList[0] || oppList[3]; // 桜華学院（3位決定戦）
+      return oppList[0] || oppList[3];
     }
   }
 
@@ -214,7 +214,7 @@ export default function MatchPage() {
 
   const [activeContributors, setActiveContributors] = useState<Record<number, number>>({});
 
-  // ★ ビッグマッチ勝利特別演出モーダル
+  // ビッグマッチ勝利特別演出モーダル
   const [specialVictory, setSpecialVictory] = useState<{
     type: "ASIA" | "AUTUMN" | "USA";
     title: string;
@@ -222,7 +222,7 @@ export default function MatchPage() {
     desc: string;
     imageUrl: string;
     rewardText: string;
-    bgm: BgmType;
+    bgm: string;
   } | null>(null);
 
   const [matchResult, setMatchResult] = useState<{
@@ -693,7 +693,7 @@ export default function MatchPage() {
         g.batter.isSwinging = Math.random() < swingProb;
       }
     }
-    // 3. SWINGING（★相対勝負判定 ＆ 特能スキル完全連携）
+    // 3. SWINGING（相対勝負判定 ＆ 特能スキル連携）
     else if (g.phase === "SWINGING") {
       if (g.batter.isSwinging) {
         g.batter.batAngle += isLeft ? 0.35 : -0.35;
@@ -712,7 +712,7 @@ export default function MatchPage() {
           return;
         }
 
-        // --- 相対勝負判定ロジック ---
+        // 相対勝負判定ロジック
         const batterStamina = currentBatter ? (g.stamina[currentBatter.id] ?? 100) : 100;
         const staminaTiredMod = batterStamina < 30 ? -0.18 : batterStamina < 50 ? -0.08 : 0;
 
@@ -779,7 +779,7 @@ export default function MatchPage() {
         g.ball.isBreaking = false;
         g.impactEffect = 8; 
 
-        // --- 打球種別の相対パワー配分 ---
+        // 打球種別の相対パワー配分
         let effectivePower = (currentBatter?.power ?? 50) + (g.tactic === "POWER" ? 10 : g.tactic === "MEET" ? -8 : 0);
         if (bSkills.includes("power_1")) effectivePower += 6;
         if (bSkills.includes("power_2")) effectivePower += 12;
@@ -940,7 +940,7 @@ export default function MatchPage() {
           const isTired = fielderPlayer ? (g.stamina[fielderPlayer.id] ?? 100) < 35 : false;
           const aptitude = fielderPlayer?.main_position === closestFielder.pos ? 100 : 50;
 
-          // ★ フライ捕球エラー（落球）判定
+          // フライ捕球エラー（落球）判定
           if (checkFieldingError(fldScore, isTired, aptitude)) {
             if (!g.isTop) g.myErrors++;
             else g.oppErrors++;
@@ -964,7 +964,7 @@ export default function MatchPage() {
           const isTired = fielderPlayer ? (g.stamina[fielderPlayer.id] ?? 100) < 35 : false;
           const aptitude = fielderPlayer?.main_position === closestFielder.pos ? 100 : 50;
 
-          // ★ ゴロ捕球エラー（ファンブル・後逸）判定
+          // ゴロ捕球エラー（ファンブル・後逸）判定
           if (checkFieldingError(fldScore, isTired, aptitude)) {
             if (!g.isTop) g.myErrors++;
             else g.oppErrors++;
@@ -1316,9 +1316,9 @@ export default function MatchPage() {
     syncUI();
   };
 
-  // ★【音源組み込み】チェンジ時に 3out.wav を再生
+  // チェンジ時に 3out.wav を再生（安全キャスト付き）
   const triggerInningChangeSequence = (g: typeof gameRef.current, logText: string) => {
-    playSe("3out");
+    playSe("3out" as SeType);
     setBanner({ text: "3アウト チェンジ！", color: "#e11d48" });
     setLog((prev) => [logText, ...prev.slice(0, 6)]);
     g.phase = "INNING_CHANGE_WAIT";
@@ -1696,7 +1696,7 @@ export default function MatchPage() {
         let hasLostSummer = baseTeam.has_lost_summer || false;
         let hasWonAutumn = baseTeam.has_won_autumn || false;
 
-        // ★ ビッグマッチ勝利演出の検知
+        // ビッグマッチ勝利演出の検知
         let specialVictoryData: typeof specialVictory = null;
 
         if (currentSeason === "SPRING") {
@@ -1737,7 +1737,7 @@ export default function MatchPage() {
               transitionMsg = hasLostSummer ? "【夏の順位決定戦全日程終了！ 秋の大学公式リーグへ！】" : "【夏の全国トーナメント準優勝！ 秋の大学公式リーグへ！】";
             }
           } else if (currentRnd >= 4) {
-            // ★ アジア大学選手権勝利時
+            // アジア大学選手権勝利時
             if (resultType === "WIN") {
               specialVictoryData = {
                 type: "ASIA",
@@ -1769,7 +1769,7 @@ export default function MatchPage() {
             const isChampion = leagueData.standings[0]?.teamId === 0;
 
             if (isChampion) {
-              // ★ 秋季リーグ制覇時
+              // 秋季リーグ制覇時
               specialVictoryData = {
                 type: "AUTUMN",
                 title: "秋季公式リーグ 完全優勝！！",
@@ -1787,7 +1787,7 @@ export default function MatchPage() {
               transitionMsg = "【秋の大学公式リーグ全日程終了！ 4年生卒業式 ＆ 新歓ドラフトへ】";
             }
           } else if (currentRnd >= 8) {
-            // ★ 全米カレッジ選抜撃破時（本ゲームの裏ボス制覇！）
+            // 全米カレッジ選抜撃破時
             if (resultType === "WIN") {
               specialVictoryData = {
                 type: "USA",
@@ -1806,7 +1806,7 @@ export default function MatchPage() {
 
         // BGM切り替え
         if (specialVictoryData) {
-          playBgm(specialVictoryData.bgm);
+          playBgm(specialVictoryData.bgm as BgmType);
           setSpecialVictory(specialVictoryData);
         } else {
           playBgm("ending");
@@ -2054,9 +2054,8 @@ export default function MatchPage() {
     router.push("/");
   };
 
-  // ★ 卒業式モーダル突入時に graduation.m4a を再生
   const handleOpenGraduationCeremony = () => {
-    playBgm("graduation");
+    playBgm("graduation" as BgmType);
     setShowGraduationCeremony(true);
   };
 
@@ -2805,9 +2804,7 @@ export default function MatchPage() {
         <PlayerCardModal player={viewPlayer} onClose={() => setViewPlayer(null)} />
       )}
 
-      {/* ============================================================== */}
-      {/* ★【新機能②】ビッグマッチ勝利特別演出モーダル（画像・号外・音楽） */}
-      {/* ============================================================== */}
+      {/* ビッグマッチ勝利特別演出モーダル */}
       {specialVictory && (
         <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-500">
           <div className="max-w-xl w-full bg-slate-900 border-2 border-amber-400/80 rounded-3xl p-6 md:p-8 text-center space-y-5 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300 text-white">
@@ -2819,14 +2816,12 @@ export default function MatchPage() {
               <Crown size={14} className="text-amber-400" /> {specialVictory.subTitle}
             </div>
 
-            {/* 背景画像エリア */}
             <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-800 border-2 border-amber-400/50 shadow-2xl">
               <img
                 src={specialVictory.imageUrl}
                 alt={specialVictory.title}
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  // 画像がない場合のフォールバック表示
                   e.currentTarget.style.display = "none";
                 }}
               />
@@ -2844,7 +2839,6 @@ export default function MatchPage() {
               </p>
             </div>
 
-            {/* 特別獲得報酬 */}
             <div className="bg-gradient-to-r from-amber-500/20 via-amber-400/30 to-amber-500/20 border border-amber-400/60 rounded-2xl p-3 text-xs font-black text-amber-200 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <Award size={16} className="text-amber-400" /> 獲得特典・称号:
@@ -2963,9 +2957,7 @@ export default function MatchPage() {
         </div>
       )}
 
-      {/* ============================================================== */}
       {/* 第◯期生 卒業証書授与式 ＆ 進路報告会モーダル */}
-      {/* ============================================================== */}
       {showGraduationCeremony && matchResult?.graduatedList && (
         <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-300">
           <div className="max-w-2xl w-full bg-white rounded-3xl p-6 md:p-8 shadow-2xl border border-slate-200 space-y-5 text-center max-h-[92vh] flex flex-col justify-between">

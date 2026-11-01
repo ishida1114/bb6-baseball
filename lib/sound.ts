@@ -1,13 +1,34 @@
 // lib/sound.ts
 
-export type BgmType = "opening" | "clubhouse" | "playingmarch" | "ending";
-export type SeType = "strike" | "ball" | "playball" | "out" | "gameset" | "meet" | "homerun";
+export type BgmType =
+  | "opening"
+  | "clubhouse"
+  | "playingmarch"
+  | "ending"
+  | "graduation"
+  | "win_asia"
+  | "win_autumn"
+  | "win_usa";
+
+export type SeType =
+  | "strike"
+  | "ball"
+  | "playball"
+  | "out"
+  | "3out"
+  | "gameset"
+  | "meet"
+  | "homerun";
 
 const BGM_PATHS: Record<BgmType, string> = {
   opening: "/sound/opening.m4a",
   clubhouse: "/sound/clubhouse.m4a",
   playingmarch: "/sound/playingmarch.m4a",
   ending: "/sound/ending.m4a",
+  graduation: "/sound/graduation.m4a",
+  win_asia: "/sound/win_asia.m4a",
+  win_autumn: "/sound/win_autumn.m4a",
+  win_usa: "/sound/win_usa.m4a",
 };
 
 const SE_PATHS: Record<SeType, string> = {
@@ -15,6 +36,7 @@ const SE_PATHS: Record<SeType, string> = {
   ball: "/sound/ball.wav",
   playball: "/sound/playball.wav",
   out: "/sound/out.wav",
+  "3out": "/sound/3out.wav",
   gameset: "/sound/gameset.wav",
   meet: "/sound/meet.mp3",
   homerun: "/sound/homerun.mp3",
@@ -91,8 +113,7 @@ export function playBgm(type: BgmType) {
 
   if (!isMutedState) {
     audio.play().catch(() => {
-      // ブラウザに自動再生をブロックされた場合もインスタンスは保持
-      // 次のタップ・クリック時に tryResumeAudio で鳴り出す
+      // 自動再生がブロックされてもインスタンスは保持（次のタップで再生開始）
     });
   }
 }
