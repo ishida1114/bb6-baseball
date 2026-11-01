@@ -35,7 +35,6 @@ export default function TitlePage() {
     setLoading(true);
     try {
       if (typeof window !== "undefined") {
-        // サウンド設定（bb6_sound_muted）以外の全ゲームセーブデータを完全削除
         Object.keys(localStorage).forEach((key) => {
           if (key.startsWith("bb6_") && key !== "bb6_sound_muted") {
             localStorage.removeItem(key);
@@ -56,7 +55,7 @@ export default function TitlePage() {
   };
 
   return (
-    <div className="h-[100dvh] w-full bg-slate-950 flex flex-col items-center justify-end relative overflow-hidden select-none font-sans pb-6 sm:pb-10">
+    <div className="h-[100dvh] w-full bg-slate-950 flex flex-col items-center justify-between relative overflow-hidden select-none font-sans py-4 sm:py-6">
       
       {/* 画面右上の音量オン／オフボタン */}
       <div className="absolute top-4 right-4 z-20">
@@ -81,8 +80,11 @@ export default function TitlePage() {
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent pointer-events-none" />
       </div>
 
-      {/* 操作ボタンエリア */}
-      <div className="relative z-10 max-w-sm sm:max-w-md w-full px-4 sm:px-6 flex flex-col items-center space-y-3">
+      {/* 上部スペーサー（ロゴエリアの被りを防止） */}
+      <div className="h-[26vh] sm:h-[30vh] shrink-0 pointer-events-none" />
+
+      {/* 操作ボタンエリア（中央の空きスペースに配置） */}
+      <div className="relative z-10 max-w-sm sm:max-w-md w-full px-4 sm:px-6 flex flex-col items-center space-y-3 my-auto">
         {savedTeam && (
           <button
             onClick={handleContinue}
@@ -138,11 +140,13 @@ export default function TitlePage() {
             初期化中... キャラ作成画面へ進みます
           </div>
         )}
-
-        <div className="text-[10px] text-white/70 font-mono font-bold drop-shadow pt-0.5">
-          © 監督、プレイボールです！～カレッジガールズ・6ベースボール～
-        </div>
       </div>
+
+      {/* コピーライト（最下部） */}
+      <div className="relative z-10 text-[10px] text-white/70 font-mono font-bold drop-shadow pb-1">
+        © 監督、プレイボールです！～カレッジガールズ・6ベースボール～
+      </div>
+
     </div>
   );
 }
