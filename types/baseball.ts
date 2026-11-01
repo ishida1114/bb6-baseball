@@ -33,7 +33,7 @@ export interface SkillDef {
   name: string;
   tier: SkillTier;
   treeId: SkillTreeId;
-  prevSkillId?: string; // 前提スキルID（例: "剛速球" の前提は "ノビ◯"）
+  prevSkillId?: string; // 前提スキルID
   desc: string;
   badgeBg: string;
   borderColor: string;
@@ -41,47 +41,83 @@ export interface SkillDef {
 }
 
 // ==========================================
-// スキルマスター定数・定義（全18種）
+// スキルマスター定数・定義（全18種＋エイリアス完全対応）
 // ==========================================
 export const SKILL_MASTER: Record<string, SkillDef> = {
   // FASTBALL (直球系)
-  NOBI_1: { id: "NOBI_1", name: "ノビ◯", tier: 1, treeId: "FASTBALL", desc: "球速以上の伸びと体感速度を生み出す", badgeBg: "bg-blue-100", borderColor: "border-blue-400", textColor: "text-blue-900" },
-  NOBI_2: { id: "NOBI_2", name: "剛速球", tier: 2, treeId: "FASTBALL", prevSkillId: "NOBI_1", desc: "うなりを上げる直球で空振りを奪う", badgeBg: "bg-blue-200", borderColor: "border-blue-500", textColor: "text-blue-950" },
-  NOBI_3: { id: "NOBI_3", name: "火の玉ストレート", tier: 3, treeId: "FASTBALL", prevSkillId: "NOBI_2", desc: "バットをへし折る伝説の剛速球", badgeBg: "bg-blue-600", borderColor: "border-blue-300", textColor: "text-white" },
+  fastball_1: { id: "fastball_1", name: "ノビ◯", tier: 1, treeId: "FASTBALL", desc: "球速以上の伸びと体感速度を生み出す", badgeBg: "bg-blue-100", borderColor: "border-blue-400", textColor: "text-blue-900" },
+  fastball_2: { id: "fastball_2", name: "剛速球", tier: 2, treeId: "FASTBALL", prevSkillId: "fastball_1", desc: "うなりを上げる直球で空振りを奪う", badgeBg: "bg-blue-200", borderColor: "border-blue-500", textColor: "text-blue-950" },
+  fastball_3: { id: "fastball_3", name: "火の玉ストレート", tier: 3, treeId: "FASTBALL", prevSkillId: "fastball_2", desc: "バットをへし折る伝説の剛速球", badgeBg: "bg-blue-600", borderColor: "border-blue-300", textColor: "text-white" },
 
   // BREAKING (変化球系)
-  KIRE_1: { id: "KIRE_1", name: "キレ◯", tier: 1, treeId: "BREAKING", desc: "鋭い変化球で芯を外す", badgeBg: "bg-indigo-100", borderColor: "border-indigo-400", textColor: "text-indigo-900" },
-  KIRE_2: { id: "KIRE_2", name: "魔球使い", tier: 2, treeId: "BREAKING", prevSkillId: "KIRE_1", desc: "手元で急激に変化する魔球を投じる", badgeBg: "bg-indigo-200", borderColor: "border-indigo-500", textColor: "text-indigo-950" },
-  KIRE_3: { id: "KIRE_3", name: "七色の変化球", tier: 3, treeId: "BREAKING", prevSkillId: "KIRE_2", desc: "変幻自在の配球で打者を幻惑する", badgeBg: "bg-indigo-600", borderColor: "border-indigo-300", textColor: "text-white" },
+  breaking_1: { id: "breaking_1", name: "キレ◯", tier: 1, treeId: "BREAKING", desc: "鋭い変化球で芯を外す", badgeBg: "bg-indigo-100", borderColor: "border-indigo-400", textColor: "text-indigo-900" },
+  breaking_2: { id: "breaking_2", name: "魔球使い", tier: 2, treeId: "BREAKING", prevSkillId: "breaking_1", desc: "手元で急激に変化する魔球を投じる", badgeBg: "bg-indigo-200", borderColor: "border-indigo-500", textColor: "text-indigo-950" },
+  breaking_3: { id: "breaking_3", name: "七色の変化球", tier: 3, treeId: "BREAKING", prevSkillId: "breaking_2", desc: "変幻自在の配球で打者を幻惑する", badgeBg: "bg-indigo-600", borderColor: "border-indigo-300", textColor: "text-white" },
 
   // POWER (強打系)
-  POWER_1: { id: "POWER_1", name: "パワーヒッター", tier: 1, treeId: "POWER", desc: "強振時に弾道が上がり長打が出やすい", badgeBg: "bg-rose-100", borderColor: "border-rose-400", textColor: "text-rose-900" },
-  POWER_2: { id: "POWER_2", name: "大砲", tier: 2, treeId: "POWER", prevSkillId: "POWER_1", desc: "芯で捉えた打球の飛距離が劇的にアップ", badgeBg: "bg-rose-200", borderColor: "border-rose-500", textColor: "text-rose-950" },
-  POWER_3: { id: "POWER_3", name: "怪力モンスター", tier: 3, treeId: "POWER", prevSkillId: "POWER_2", desc: "規格外の打球速度でスタンドへ叩き込む", badgeBg: "bg-rose-600", borderColor: "border-rose-300", textColor: "text-white" },
+  power_1: { id: "power_1", name: "パワーヒッター", tier: 1, treeId: "POWER", desc: "強振時に弾道が上がり長打が出やすい", badgeBg: "bg-rose-100", borderColor: "border-rose-400", textColor: "text-rose-900" },
+  power_2: { id: "power_2", name: "大砲", tier: 2, treeId: "POWER", prevSkillId: "power_1", desc: "芯で捉えた打球の飛距離が劇的にアップ", badgeBg: "bg-rose-200", borderColor: "border-rose-500", textColor: "text-rose-950" },
+  power_3: { id: "power_3", name: "怪力モンスター", tier: 3, treeId: "POWER", prevSkillId: "power_2", desc: "規格外の打球速度でスタンドへ叩き込む", badgeBg: "bg-rose-600", borderColor: "border-rose-300", textColor: "text-white" },
 
   // CONTACT (巧打系)
-  AV_1: { id: "AV_1", name: "アベレージヒッター", tier: 1, treeId: "CONTACT", desc: "ミート打ち時のヒットゾーンが拡大", badgeBg: "bg-amber-100", borderColor: "border-amber-400", textColor: "text-amber-900" },
-  AV_2: { id: "AV_2", name: "安打製造機", tier: 2, treeId: "CONTACT", prevSkillId: "AV_1", desc: "巧みなバットコントロールで安打を量産", badgeBg: "bg-amber-200", borderColor: "border-amber-500", textColor: "text-amber-950" },
-  AV_3: { id: "AV_3", name: "球聖", tier: 3, treeId: "CONTACT", prevSkillId: "AV_2", desc: "あらゆる球種を完璧にミートする神技", badgeBg: "bg-amber-500", borderColor: "border-amber-300", textColor: "text-slate-950" },
+  contact_1: { id: "contact_1", name: "アベレージヒッター", tier: 1, treeId: "CONTACT", desc: "ミート打ち時のヒットゾーンが拡大", badgeBg: "bg-amber-100", borderColor: "border-amber-400", textColor: "text-amber-900" },
+  contact_2: { id: "contact_2", name: "安打製造機", tier: 2, treeId: "CONTACT", prevSkillId: "contact_1", desc: "巧みなバットコントロールで安打を量産", badgeBg: "bg-amber-200", borderColor: "border-amber-500", textColor: "text-amber-950" },
+  contact_3: { id: "contact_3", name: "球聖", tier: 3, treeId: "CONTACT", prevSkillId: "contact_2", desc: "あらゆる球種を完璧にミートする神技", badgeBg: "bg-amber-500", borderColor: "border-amber-300", textColor: "text-slate-950" },
 
   // SPEED (機動系)
-  SPEED_1: { id: "SPEED_1", name: "盗塁◯", tier: 1, treeId: "SPEED", desc: "盗塁時のスタートダッシュと成功率アップ", badgeBg: "bg-emerald-100", borderColor: "border-emerald-400", textColor: "text-emerald-900" },
-  SPEED_2: { id: "SPEED_2", name: "韋駄天", tier: 2, treeId: "SPEED", prevSkillId: "SPEED_1", desc: "圧倒的な走力で次の塁を果敢に陥れる", badgeBg: "bg-emerald-200", borderColor: "border-emerald-500", textColor: "text-emerald-950" },
-  SPEED_3: { id: "SPEED_3", name: "神速", tier: 3, treeId: "SPEED", prevSkillId: "SPEED_2", desc: "ダイヤモンドを疾風のように駆け抜ける", badgeBg: "bg-emerald-600", borderColor: "border-emerald-300", textColor: "text-white" },
+  speed_1: { id: "speed_1", name: "盗塁◯", tier: 1, treeId: "SPEED", desc: "盗塁時のスタートダッシュと成功率アップ", badgeBg: "bg-emerald-100", borderColor: "border-emerald-400", textColor: "text-emerald-900" },
+  speed_2: { id: "speed_2", name: "韋駄天", tier: 2, treeId: "SPEED", prevSkillId: "speed_1", desc: "圧倒的な走力で次の塁を果敢に陥れる", badgeBg: "bg-emerald-200", borderColor: "border-emerald-500", textColor: "text-emerald-950" },
+  speed_3: { id: "speed_3", name: "神速", tier: 3, treeId: "SPEED", prevSkillId: "speed_2", desc: "ダイヤモンドを疾風のように駆け抜ける", badgeBg: "bg-emerald-600", borderColor: "border-emerald-300", textColor: "text-white" },
 
   // CLUTCH (勝負強さ系)
-  CLUTCH_1: { id: "CLUTCH_1", name: "チャンス◯", tier: 1, treeId: "CLUTCH", desc: "得点圏で打撃能力と集中力が上昇", badgeBg: "bg-purple-100", borderColor: "border-purple-400", textColor: "text-purple-900" },
-  CLUTCH_2: { id: "CLUTCH_2", name: "勝負師", tier: 2, treeId: "CLUTCH", prevSkillId: "CLUTCH_1", desc: "好機で極めて高い決定力を発揮する", badgeBg: "bg-purple-200", borderColor: "border-purple-500", textColor: "text-purple-950" },
-  CLUTCH_3: { id: "CLUTCH_3", name: "逆転サヨナラ男", tier: 3, treeId: "CLUTCH", prevSkillId: "CLUTCH_2", desc: "土壇場で奇跡の一打を呼び込む勝負強さ", badgeBg: "bg-purple-600", borderColor: "border-purple-300", textColor: "text-white" },
+  clutch_1: { id: "clutch_1", name: "チャンス◯", tier: 1, treeId: "CLUTCH", desc: "得点圏で打撃能力と集中力が上昇", badgeBg: "bg-purple-100", borderColor: "border-purple-400", textColor: "text-purple-900" },
+  clutch_2: { id: "clutch_2", name: "勝負師", tier: 2, treeId: "CLUTCH", prevSkillId: "clutch_1", desc: "好機で極めて高い決定力を発揮する", badgeBg: "bg-purple-200", borderColor: "border-purple-500", textColor: "text-purple-950" },
+  clutch_3: { id: "clutch_3", name: "逆転サヨナラ男", tier: 3, treeId: "CLUTCH", prevSkillId: "clutch_2", desc: "土壇場で奇跡の一打を呼び込む勝負強さ", badgeBg: "bg-purple-600", borderColor: "border-purple-300", textColor: "text-white" },
 };
+
+// 大文字・短縮形エイリアスの相互登録
+SKILL_MASTER["NOBI_1"] = SKILL_MASTER["fastball_1"];
+SKILL_MASTER["NOBI_2"] = SKILL_MASTER["fastball_2"];
+SKILL_MASTER["NOBI_3"] = SKILL_MASTER["fastball_3"];
+SKILL_MASTER["FASTBALL_1"] = SKILL_MASTER["fastball_1"];
+SKILL_MASTER["FASTBALL_2"] = SKILL_MASTER["fastball_2"];
+SKILL_MASTER["FASTBALL_3"] = SKILL_MASTER["fastball_3"];
+
+SKILL_MASTER["KIRE_1"] = SKILL_MASTER["breaking_1"];
+SKILL_MASTER["KIRE_2"] = SKILL_MASTER["breaking_2"];
+SKILL_MASTER["KIRE_3"] = SKILL_MASTER["breaking_3"];
+SKILL_MASTER["BREAKING_1"] = SKILL_MASTER["breaking_1"];
+SKILL_MASTER["BREAKING_2"] = SKILL_MASTER["breaking_2"];
+SKILL_MASTER["BREAKING_3"] = SKILL_MASTER["breaking_3"];
+
+SKILL_MASTER["POWER_1"] = SKILL_MASTER["power_1"];
+SKILL_MASTER["POWER_2"] = SKILL_MASTER["power_2"];
+SKILL_MASTER["POWER_3"] = SKILL_MASTER["power_3"];
+
+SKILL_MASTER["AV_1"] = SKILL_MASTER["contact_1"];
+SKILL_MASTER["AV_2"] = SKILL_MASTER["contact_2"];
+SKILL_MASTER["AV_3"] = SKILL_MASTER["contact_3"];
+SKILL_MASTER["CONTACT_1"] = SKILL_MASTER["contact_1"];
+SKILL_MASTER["CONTACT_2"] = SKILL_MASTER["contact_2"];
+SKILL_MASTER["CONTACT_3"] = SKILL_MASTER["contact_3"];
+
+SKILL_MASTER["SPEED_1"] = SKILL_MASTER["speed_1"];
+SKILL_MASTER["SPEED_2"] = SKILL_MASTER["speed_2"];
+SKILL_MASTER["SPEED_3"] = SKILL_MASTER["speed_3"];
+
+SKILL_MASTER["CLUTCH_1"] = SKILL_MASTER["clutch_1"];
+SKILL_MASTER["CLUTCH_2"] = SKILL_MASTER["clutch_2"];
+SKILL_MASTER["CLUTCH_3"] = SKILL_MASTER["clutch_3"];
 
 export const SKILL_DEFINITIONS: SkillDef[] = Object.values(SKILL_MASTER);
 
 /**
- * スキルIDからスキル定義を取得するヘルパー
+ * スキルIDからスキル定義を取得するヘルパー（大文字小文字・空白を吸収）
  */
 export function getSkillDef(skillId: string): SkillDef | undefined {
-  return SKILL_MASTER[skillId];
+  if (!skillId) return undefined;
+  const normalized = skillId.toLowerCase().trim();
+  return SKILL_MASTER[normalized] || SKILL_MASTER[skillId];
 }
 
 // ==========================================
@@ -111,7 +147,7 @@ export interface Player {
   // 個性・追加システム
   personality?: PersonalityType; // 性格
   nickname?: string;             // 二つ名・称号
-  skills?: string[];             // 習得済みスキルIDリスト（例: ["NOBI_1", "POWER_1"]）
+  skills?: string[];             // 習得済みスキルIDリスト（例: ["contact_1", "fastball_1"]）
 
   // フラグ・解説
   is_protagonist?: boolean;     // 主人公フラグ
