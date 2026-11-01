@@ -11,7 +11,8 @@ import SoundToggle from "@/components/SoundToggle";
 import { playBgm } from "@/lib/sound";
 import { 
   Trophy, Dumbbell, Building2, Play, Users, MessageSquare, 
-  Sparkles, Award, ChevronRight, HelpCircle, Shield, Crown, Flame, Zap, Gauge, X, CheckCircle2, Clock
+  Sparkles, Award, ChevronRight, HelpCircle, Shield, Crown, Flame, Zap, Gauge, X, CheckCircle2, Clock,
+  Coffee, Heart
 } from "lucide-react";
 import Link from "next/link";
 
@@ -90,6 +91,9 @@ export default function ClubhousePage() {
   const [rankingTab, setRankingTab] = useState<"BATTER" | "PITCHER">("BATTER");
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
+  // ★ 突発カフェお誘いイベント
+  const [cafeInvite, setCafeInvite] = useState<{ partnerId: number; partnerName: string } | null>(null);
+
   useEffect(() => {
     playBgm("clubhouse");
 
@@ -129,6 +133,26 @@ export default function ClubhousePage() {
           }
         } else {
           setProtagonist(parsed.players[0]);
+        }
+      }
+
+      // ★ カフェ突発お誘いチェック
+      const currentRnd = parsed.current_round || 1;
+      const lastCafe = (parsed as any).last_cafe_round || 0;
+      const savedInvite = localStorage.getItem("bb6_cafe_invite");
+
+      if (savedInvite) {
+        try {
+          setCafeInvite(JSON.parse(savedInvite));
+        } catch {}
+      } else if (lastCafe !== currentRnd && Math.random() < 0.22) {
+        // 22%の確率で仲間からの逆指名が発生
+        const teammates = parsed.players.filter((p) => !p.is_protagonist);
+        if (teammates.length > 0) {
+          const picked = teammates[Math.floor(Math.random() * teammates.length)];
+          const newInvite = { partnerId: picked.id, partnerName: picked.name };
+          localStorage.setItem("bb6_cafe_invite", JSON.stringify(newInvite));
+          setCafeInvite(newInvite);
         }
       }
     } catch (e) {
@@ -212,57 +236,63 @@ export default function ClubhousePage() {
   const isSecondGenOrLater = aceGen >= 2;
 
   const getSeasonDialogue = () => {
+    if (cafeInvite) {
+      return [
+        `ねえねえ！ ${cafeInvite.partnerName.split(" ")[0]}から『練習終わったらカフェ寄っていかない？』ってお誘い受けてるよ！ ごちそうになっちゃおう！`,
+        "カフェでゆっくり話すと、スタミナを増やしたり新しい守備位置の適性を開拓できるよ！",
+      ];
+    }
     if (season === "SPRING") {
       return [
-        "まず初めに、「オーダー変更」で戦力を確認、次に「全体練習・特訓合宿」で練習、それから「試合を開始する（プレイボール）」へ進んでください！",
+        "まず初めに、「オーダー変更」で戦力を確認、次に「全体練習」や「放課後カフェ」で仲間を強化、それから「試合を開始する」へ進んでね！",
         isSecondGenOrLater
           ? `先輩たちから伝統のマウンドを受け継ぎました！ ${aceGen}代目エースとして、今年も青葉旋風を巻き起こしてみせます！`
-          : `現在は春のプレシーズン！ 第${team.current_round}戦は【${opponent.name}】との一戦です！ 新入生の適性をしっかり試しましょう！`,
-        "紅白戦は青葉部員をシャッフルした真剣勝負！ 敵味方両面から仲間の実力を肌で体感できますよ！",
-        "第3戦の実業団チームに勝利すると、企業から特別スポンサー料（多額の部費）が支給されますよ！",
-        "春の全4試合を完走すると、夏の全国大学トーナメントへ進出できます！",
+          : `現在は春のプレシーズン！ 第${team.current_round}戦は【${opponent.name}】との一戦だよ！ 新入生の適性をしっかり試そう！`,
+        "紅白戦は青葉部員をシャッフルした真剣勝負！ 敵味方両面から仲間の実力を肌で体感できるよ！",
+        "第3戦の実業団チームに勝利すると、企業から特別スポンサー料（多額の部費）が支給されるよ！",
+        "春の全4試合を完走すると、夏の全国大学トーナメントへ進出できるよ！",
       ];
     }
     if (season === "SUMMER") {
       if (team.current_round === 4 || team.has_won_summer) {
         return [
-          "全国大会優勝、おめでとうございます！ ついにアジア最強『アジア大学選抜』との国際親善試合です！",
-          "アジア各地から集ったトップ選手たちを相手に、青葉のチームワークを見せつけましょう！",
+          "全国大会優勝、おめでとう！ ついにアジア最強『アジア大学選抜』との国際親善試合だよ！",
+          "アジア各地から集ったトップ選手たちを相手に、青葉のチームワークを見せつけよう！",
         ];
       }
       if (team.has_lost_summer) {
         return [
-          `準決勝は惜しかったですが、まだ終わりじゃありません！ 第${team.current_round}戦は【${opponent.name}】との3位決定戦です！`,
-          "全国3位の栄誉を勝ち取って、秋の公式リーグへ弾みをつけましょう！",
-          "負けた悔しさを力に変えて、最後の一球まで全力で戦い抜きましょう！",
+          `準決勝は惜しかったけど、まだ終わりじゃないよ！ 第${team.current_round}戦は【${opponent.name}】との3位決定戦！`,
+          "全国3位の栄誉を勝ち取って、秋の公式リーグへ弾みをつけよう！",
+          "負けた悔しさを力に変えて、最後の一球まで全力で戦い抜こう！",
         ];
       }
       return [
-        `夏の全国大学トーナメントが開幕しました！ 第${team.current_round}戦の相手は【${opponent.name}】です！`,
-        "トーナメントで優勝すれば、アジアの精鋭が集う『アジア大学選抜』との特別マッチに挑戦できますよ！",
-        "夏の試合で得た部費は『全体練習・特訓合宿』に注ぎ込んで、秋の本番に向けて選手を一気に覚醒させましょう！",
+        `夏の全国大学トーナメントが開幕！ 第${team.current_round}戦の相手は【${opponent.name}】だよ！`,
+        "トーナメントで優勝すれば、アジアの精鋭が集う『アジア大学選抜』との特別マッチに挑戦できるよ！",
+        "夏の試合で得た部費は練習やカフェ、設備投資に注ぎ込んで、秋の本番に向けて選手を一気に覚醒させよう！",
       ];
     }
     if (team.current_round === 8 || team.has_won_autumn) {
       return [
-        "秋季リーグ制覇、本当におめでとうございます！ そして…ついに世界最強『全米カレッジ選抜』との日米決戦です！",
-        "本場アメリカの155km/h超の剛腕＆怪力スラッガー軍団！ 4年生最後の舞台、全力でぶつかりましょう！",
-        "この日米親善試合が終われば、4年生は名誉の卒業となります。歴史に名を刻む大金星を掴み取りましょう！",
+        "秋季リーグ制覇、本当におめでとう！ そして…ついに世界最強『全米カレッジ選抜』との日米決戦だよ！",
+        "本場アメリカの160km/h超の剛腕＆怪力スラッガー軍団！ 4年生最後の舞台、全力でぶつかろう！",
+        "この日米親善試合が終われば、4年生は名誉の卒業となるよ。歴史に名を刻む大金星を掴み取ろう！",
       ];
     }
     return [
-      `いよいよ秋の本番、大学公式リーグ第${team.current_round}節！ 相手は【${opponent.name}】です！`,
-      "秋は全8大学による総当たり戦！ 4年生の先輩たちと一緒に、悲願のリーグ制覇を目指しましょう！",
-      "秋季リーグで優勝すると、王者特典として『全米カレッジ選抜』との日米親善決戦に挑めますよ！",
-      "第7節が終わると4年生は卒業・引退となります。悔いのない戦いを繰り広げましょう！",
+      `いよいよ秋の本番、大学公式リーグ第${team.current_round}節！ 相手は【${opponent.name}】だよ！`,
+      "秋は全8大学による総当たり戦！ 4年生の先輩たちと一緒に、悲願のリーグ制覇を目指そう！",
+      "秋季リーグで優勝すると、王者特典として『全米カレッジ選抜』との日米親善決戦に挑めるよ！",
+      "第7節が終わると4年生は卒業・引退となるよ。悔いのない戦いを繰り広げよう！",
     ];
   };
 
   const dialogues = [
     ...getSeasonDialogue(),
-    "部費が貯まったら『グラウンド整備』に投資しましょう！ 設備は引退してもずっとチームに残ります！",
-    "走力75以上の選手は、隙があれば果敢に盗塁（スチール）を仕掛けてチャンスを広げてくれますよ！",
-    "私にできることがあれば何でも言ってくださいね。マウンドは絶対に守り抜いてみせます！",
+    "部費が貯まったら『グラウンド整備』に投資しよう！ 設備は引退してもずっとチームに残るよ！",
+    "走力75以上の選手は、隙があれば果敢に盗塁（スチール）を仕掛けてチャンスを広げてくれるよ！",
+    "私にできることがあれば何でも言ってね。マウンドは絶対に守り抜いてみせるよ！",
   ];
 
   const currentDialogue = dialogues[dialogueIndex % dialogues.length];
@@ -473,7 +503,7 @@ export default function ClubhousePage() {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-transparent pointer-events-none" />
 
-              <div className="absolute top-4 left-4 flex items-center gap-2">
+              <div className="absolute top-4 left-4 flex flex-wrap items-center gap-2">
                 <span className="bg-slate-900/85 backdrop-blur-md text-amber-300 border border-amber-400/30 text-xs font-black px-3 py-1 rounded-xl shadow">
                   青葉女子大 野球部室
                 </span>
@@ -484,6 +514,19 @@ export default function ClubhousePage() {
                   <Award size={15} className="text-amber-600" /> 個人タイトルランキング (TOP 5)
                 </button>
               </div>
+
+              {/* ★ 突発カフェお誘いバナー（部室内表示） */}
+              {cafeInvite && (
+                <div className="absolute top-4 right-4 z-10 animate-bounce duration-1000">
+                  <Link
+                    href="/cafe"
+                    className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white text-xs font-black px-3.5 py-2 rounded-2xl shadow-xl flex items-center gap-2 border-2 border-white transition active:scale-95"
+                  >
+                    <Coffee size={15} className="animate-spin duration-3000" />
+                    <span>{cafeInvite.partnerName.split(" ")[0]} からお誘い！（無料）</span>
+                  </Link>
+                </div>
+              )}
 
               {protagonist && (
                 <div
@@ -668,7 +711,7 @@ export default function ClubhousePage() {
               </div>
             )}
 
-            {/* ★【改善③】夏のトーナメント進捗（勝敗分岐に完全連動） */}
+            {/* 夏のトーナメント進捗（勝敗分岐に完全連動） */}
             {season === "SUMMER" && (
               <div className="bg-white border border-slate-200/80 rounded-3xl p-4 md:p-5 shadow-sm space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -784,47 +827,82 @@ export default function ClubhousePage() {
 
         </div>
 
-        {/* 下部メニュー */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+        {/* ============================================================== */}
+        {/* ★【下部メニュー】3大コマンド（全体練習 / 放課後カフェ / 設備投資） */}
+        {/* ============================================================== */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
           
+          {/* ① 全体練習・特訓合宿 */}
           <Link
             href="/training"
-            className="bg-white border border-slate-200/80 hover:border-amber-400 p-5 rounded-3xl shadow-sm transition flex items-center justify-between group"
+            className="bg-white border border-slate-200/80 hover:border-amber-400 p-4 rounded-3xl shadow-sm transition flex items-center justify-between group"
           >
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center group-hover:scale-105 transition shadow-sm">
-                <Dumbbell size={28} />
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center group-hover:scale-105 transition shadow-sm shrink-0">
+                <Dumbbell size={24} />
               </div>
-              <div>
-                <h3 className="text-base font-black text-slate-900 group-hover:text-amber-700 transition">
+              <div className="min-w-0">
+                <h3 className="text-sm font-black text-slate-900 group-hover:text-amber-700 transition truncate">
                   全体練習・特訓合宿
                 </h3>
-                <p className="text-xs text-slate-700 font-bold mt-0.5">
-                  方針別の底上げ ＆ 特訓合宿で大成功（+4）とスキル覚醒
+                <p className="text-[11px] text-slate-600 font-bold mt-0.5 truncate">
+                  方針別の底上げ ＆ 特訓合宿で大成功とスキル覚醒
                 </p>
               </div>
             </div>
-            <ChevronRight size={20} className="text-slate-400 group-hover:text-amber-700 transition" />
+            <ChevronRight size={18} className="text-slate-400 group-hover:text-amber-700 transition shrink-0 ml-1" />
           </Link>
 
+          {/* ② 放課後カフェ（個別交流） */}
+          <Link
+            href="/cafe"
+            className={`border p-4 rounded-3xl shadow-sm transition flex items-center justify-between group relative overflow-hidden ${
+              cafeInvite
+                ? "bg-amber-50/80 border-amber-400 ring-2 ring-amber-400/60"
+                : "bg-white border-slate-200/80 hover:border-amber-400"
+            }`}
+          >
+            {cafeInvite && (
+              <span className="absolute top-2 right-2 bg-amber-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                お誘い中 (無料)
+              </span>
+            )}
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-200 text-orange-600 flex items-center justify-center group-hover:scale-105 transition shadow-sm shrink-0">
+                <Coffee size={24} />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-black text-slate-900 group-hover:text-orange-600 transition truncate flex items-center gap-1.5">
+                  放課後カフェ
+                  <span className="text-[9px] text-orange-700 bg-orange-100 px-1.5 py-0.2 rounded font-mono font-bold">1節1回</span>
+                </h3>
+                <p className="text-[11px] text-slate-600 font-bold mt-0.5 truncate">
+                  {cafeInvite ? `${cafeInvite.partnerName.split(" ")[0]} とお茶して能力UP！` : "スタミナ上限UP ＆ 新ポジション適性を開拓"}
+                </p>
+              </div>
+            </div>
+            <ChevronRight size={18} className="text-slate-400 group-hover:text-orange-600 transition shrink-0 ml-1" />
+          </Link>
+
+          {/* ③ グラウンド整備・設備投資 */}
           <Link
             href="/facilities"
-            className="bg-white border border-slate-200/80 hover:border-amber-400 p-5 rounded-3xl shadow-sm transition flex items-center justify-between group"
+            className="bg-white border border-slate-200/80 hover:border-emerald-400 p-4 rounded-3xl shadow-sm transition flex items-center justify-between group"
           >
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center group-hover:scale-105 transition shadow-sm">
-                <Building2 size={28} />
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center group-hover:scale-105 transition shadow-sm shrink-0">
+                <Building2 size={24} />
               </div>
-              <div>
-                <h3 className="text-base font-black text-slate-900 group-hover:text-emerald-700 transition">
-                  グラウンド整備・設備投資
+              <div className="min-w-0">
+                <h3 className="text-sm font-black text-slate-900 group-hover:text-emerald-700 transition truncate">
+                  グラウンド整備・設備
                 </h3>
-                <p className="text-xs text-slate-700 font-bold mt-0.5">
+                <p className="text-[11px] text-slate-600 font-bold mt-0.5 truncate">
                   部費を投じて本拠地を発展 ＆ 永続パッシブバフ
                 </p>
               </div>
             </div>
-            <ChevronRight size={20} className="text-slate-400 group-hover:text-emerald-700 transition" />
+            <ChevronRight size={18} className="text-slate-400 group-hover:text-emerald-700 transition shrink-0 ml-1" />
           </Link>
 
         </div>
@@ -954,6 +1032,7 @@ export default function ClubhousePage() {
             </h3>
             <div className="space-y-2.5 text-xs text-slate-700 leading-relaxed max-h-72 overflow-y-auto pr-1">
               <p>・<strong>年間4シーズン制</strong>：春（プレシーズン4戦） ➔ 夏（全国トーナメント3戦＋アジア戦） ➔ 秋（公式リーグ7節＋全米決戦） ➔ 冬（世代交代・ドラフト）のサイクルで進行します。</p>
+              <p>・<strong>放課後カフェ</strong>：1節に1回、仲間とお茶をしてスタミナや守備適性を強化できます。たまに部員から無料のお誘いが来ることも！</p>
               <p>・<strong>6人制野球</strong>：投手・捕手・一塁・二塁・三塁・遊撃の6名で守り、外野手はいません。抜けた打球は長打になります。</p>
               <p>・<strong>学内紅白戦（春季第1・2戦）</strong>：自チームの部員を2組に分け、文化部助っ人を交えて対戦！ 敵味方を入れ替えながら全員の適性を把握できます。</p>
               <p>・<strong>盗塁（スチール）システム</strong>：走力75以上の選手は、性格に応じた確率で自動スタート！ 捕手の肩力との勝負になります。</p>
