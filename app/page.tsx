@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { UserTeam, Player, PositionType, LeagueData, SeasonPhase, LeagueTeam } from "@/types/baseball";
 import { loadLeagueData, OPPONENT_UNIVERSITIES } from "@/lib/league";
@@ -25,9 +25,6 @@ interface TitleRankEntry {
   detail: string;
 }
 
-/**
- * 季節および勝敗分岐に応じた対戦相手の決定
- */
 function getSeasonOpponent(team: UserTeam): LeagueTeam {
   const season: SeasonPhase = team.current_season || "SPRING";
   const rnd = team.current_round || 1;
@@ -59,12 +56,12 @@ function getSeasonOpponent(team: UserTeam): LeagueTeam {
       return getAsiaAllStars();
     }
     if (!team.has_lost_summer) {
-      if (rnd === 1) return oppList[6] || oppList[0]; // 富士見
-      if (rnd === 2) return oppList[2] || oppList[1]; // 黒潮
-      return oppList[1] || oppList[0];                // 白百合
+      if (rnd === 1) return oppList[6] || oppList[0];
+      if (rnd === 2) return oppList[2] || oppList[1];
+      return oppList[1] || oppList[0];
     } else {
-      if (rnd === 2) return oppList[4] || oppList[0]; // 紅蓮
-      return oppList[0] || oppList[3];                // 桜華学院
+      if (rnd === 2) return oppList[4] || oppList[0];
+      return oppList[0] || oppList[3];
     }
   }
 
@@ -93,8 +90,62 @@ export default function ClubhousePage() {
   // 突発カフェお誘いイベント
   const [cafeInvite, setCafeInvite] = useState<{ partnerId: number; partnerName: string } | null>(null);
 
-  // ★ シーズン開幕イントロ演出用ステート
+  // シーズン開幕イントロ演出用ステート
   const [showSeasonIntro, setShowSeasonIntro] = useState<{ season: SeasonPhase; img: string } | null>(null);
+
+  // ★ お誘いデータの厳密チェック＆同期関数
+  const syncCafeInvite = useCallback((parsedTeam: UserTeam) => {
+    const currentRnd = parsedTeam.current_round || 1;
+    const currentSeason = parsedTeam.current_season || "SPRING";
+    const currentKey = `${currentSeason}_${currentRnd}`;
+
+    // 今節すでにカフェに行ったか？
+    const lastCafeVisited = localStorage.getItem("bb6_last_cafe");
+    const isAlreadyVisited = lastCafeVisited === currentKey || (parsedTeam as any).last_cafe_round === currentRnd;
+
+    if (isAlreadyVisited) {
+      // 今節利用済みならお誘いは絶対に存在させない
+      localStorage.removeItem("bb6_cafe_invite");
+      setCafeInvite(null);
+      return;
+    }
+
+    const savedInvite = localStorage.getItem("bb6_cafe_invite");
+    if (savedInvite) {
+      try {
+        const parsedInvite = JSON.parse(savedInvite);
+        // 今節かつ同じシーズンのものだけ有効
+        if (parsedInvite.round === currentRnd && parsedInvite.season === currentSeason) {
+          const partnerExists = parsedTeam.players.some((p) => p.id === parsedInvite.partnerId);
+          if (partnerExists) {
+            setCafeInvite(parsedInvite);
+            return;
+          }
+        }
+      } catch {}
+      // 古いお誘いは破棄
+      localStorage.removeItem("bb6_cafe_invite");
+      setCafeInvite(null);
+    } else {
+      setCafeInvite(null);
+    }
+
+    // 今節未訪問かつ未お誘いの場合、低確率（20%）で新規選出
+    if (Math.random() < 0.20) {
+      const teammates = parsedTeam.players.filter((p) => !p.is_protagonist);
+      if (teammates.length > 0) {
+        const picked = teammates[Math.floor(Math.random() * teammates.length)];
+        const newInvite = {
+          partnerId: picked.id,
+          partnerName: picked.name,
+          round: currentRnd,
+          season: currentSeason,
+        };
+        localStorage.setItem("bb6_cafe_invite", JSON.stringify(newInvite));
+        setCafeInvite(newInvite);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     playBgm("clubhouse");
@@ -107,7 +158,6 @@ export default function ClubhousePage() {
     try {
       const parsed: UserTeam = JSON.parse(saved);
       
-      // 人数不足ガード
       if (parsed.players && parsed.players.length < 10) {
         router.replace("/scout-spring");
         return;
@@ -141,11 +191,8 @@ export default function ClubhousePage() {
       const currentYear = parsed.current_year || 1;
       const currentRnd = parsed.current_round || 1;
       const currentSeason = parsed.current_season || "SPRING";
-      const lastCafe = (parsed as any).last_cafe_round || 0;
 
-      // =========================================================
-      // ★ 新機能：各シーズンの第1節（開幕時）にイントロ演出を挟む
-      // =========================================================
+      // 各シーズンの第1節（開幕時）にイントロ演出を挟む
       if (currentRnd === 1) {
         const introKey = `bb6_intro_seen_${currentYear}_${currentSeason}`;
         if (!localStorage.getItem(introKey)) {
@@ -156,48 +203,41 @@ export default function ClubhousePage() {
         }
       }
 
-      // カフェ突発お誘いチェック
-      const savedInvite = localStorage.getItem("bb6_cafe_invite");
-      let validInvite: { partnerId: number; partnerName: string; round?: number; season?: string } | null = null;
-
-      if (savedInvite) {
-        try {
-          const parsedInvite = JSON.parse(savedInvite);
-          if (parsedInvite.round === currentRnd && parsedInvite.season === currentSeason) {
-            validInvite = parsedInvite;
-            setCafeInvite(parsedInvite);
-          } else {
-            localStorage.removeItem("bb6_cafe_invite");
-            setCafeInvite(null);
-          }
-        } catch {
-          localStorage.removeItem("bb6_cafe_invite");
-          setCafeInvite(null);
-        }
-      }
-
-      if (!validInvite && lastCafe !== currentRnd && Math.random() < 0.22) {
-        const teammates = parsed.players.filter((p) => !p.is_protagonist);
-        if (teammates.length > 0) {
-          const picked = teammates[Math.floor(Math.random() * teammates.length)];
-          const newInvite = {
-            partnerId: picked.id,
-            partnerName: picked.name,
-            round: currentRnd,
-            season: currentSeason,
-          };
-          localStorage.setItem("bb6_cafe_invite", JSON.stringify(newInvite));
-          setCafeInvite(newInvite);
-        }
-      }
+      // お誘いの同期
+      syncCafeInvite(parsed);
     } catch (e) {
       router.replace("/title");
     } finally {
       setLoading(false);
     }
-  }, [router]);
 
-  // ★ シーズン開幕イントロを閉じて部室に入る
+    // 画面に復帰した時（カフェ画面から戻ってきた時など）にお誘い状態を再同期
+    const handleVisibility = () => {
+      const raw = localStorage.getItem("bb6_myTeam");
+      if (raw) {
+        try {
+          const pt = JSON.parse(raw);
+          syncCafeInvite(pt);
+        } catch {}
+      }
+    };
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [router, syncCafeInvite]);
+
+  // ★ お誘いを断る（バッジを閉じる）ハンドラー
+  const handleDismissInvite = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    localStorage.removeItem("bb6_cafe_invite");
+    setCafeInvite(null);
+  };
+
   const handleCloseSeasonIntro = () => {
     if (showSeasonIntro && team) {
       const introKey = `bb6_intro_seen_${team.current_year || 1}_${showSeasonIntro.season}`;
@@ -274,7 +314,6 @@ export default function ClubhousePage() {
   };
 
   const oppFeature = opponent?.feature || opponent?.desc || "大学女子野球屈指の実力校";
-
   const aceGen = (team as any).ace_generation || 1;
   const isSecondGenOrLater = aceGen >= 2;
 
@@ -557,9 +596,9 @@ export default function ClubhousePage() {
                 </button>
               </div>
 
-              {/* 突発カフェお誘いバナー（部室内表示） */}
+              {/* ★ 突発カフェお誘いバナー（右側に「×」ボタン付きでいつでも消去可能！） */}
               {cafeInvite && (
-                <div className="absolute top-4 right-4 z-10 animate-bounce duration-1000">
+                <div className="absolute top-4 right-4 z-10 animate-bounce duration-1000 flex items-center gap-1.5">
                   <Link
                     href="/cafe"
                     className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white text-xs font-black px-3.5 py-2 rounded-2xl shadow-xl flex items-center gap-2 border-2 border-white transition active:scale-95"
@@ -567,6 +606,15 @@ export default function ClubhousePage() {
                     <Coffee size={15} className="animate-spin duration-3000" />
                     <span>{cafeInvite.partnerName.split(" ")[0]} からお誘い！（無料）</span>
                   </Link>
+
+                  {/* ★【追加】お誘いを見送る（断ってバッジを消す）ボタン */}
+                  <button
+                    onClick={handleDismissInvite}
+                    className="w-7 h-7 rounded-full bg-slate-900/80 hover:bg-slate-950 text-white border border-white/40 flex items-center justify-center shadow transition active:scale-90"
+                    title="今回は見送る（バッジを閉じる）"
+                  >
+                    <X size={14} />
+                  </button>
                 </div>
               )}
 
@@ -753,7 +801,6 @@ export default function ClubhousePage() {
               </div>
             )}
 
-            {/* 夏のトーナメント進捗（勝敗分岐に完全連動） */}
             {season === "SUMMER" && (
               <div className="bg-white border border-slate-200/80 rounded-3xl p-4 md:p-5 shadow-sm space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -946,21 +993,18 @@ export default function ClubhousePage() {
 
       </div>
 
-      {/* ============================================================== */}
-      {/* ★【新機能】シーズン開幕 イントロ演出 */}
-      {/* ============================================================== */}
+      {/* シーズン開幕 イントロ演出（ハッキリ映る設定） */}
       {showSeasonIntro && (
         <div 
           className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center cursor-pointer animate-in fade-in duration-700 select-none"
           onClick={handleCloseSeasonIntro}
         >
-          {/* 修正後（ハッキリ綺麗に映る設定） */}
 <img 
   src={showSeasonIntro.img} 
   alt={showSeasonIntro.season} 
   className="absolute inset-0 w-full h-full object-cover opacity-80"
 />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-slate-950/80 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-slate-950/70 pointer-events-none" />
           
           <div className="relative z-10 flex flex-col items-center space-y-4 md:space-y-6">
             <span className="text-amber-400 font-bold tracking-[0.3em] text-sm md:text-base drop-shadow-md">
